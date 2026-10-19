@@ -4,24 +4,37 @@ import Foundation
 public struct AccountUsage: Codable, Equatable, Identifiable {
     public var id: String
     public var label: String
+    public var provider: UsageProvider
     public var sessionPct: Double?
     public var weeklyPct: Double?
     public var sessionResetsAt: Double?
     public var weeklyResetsAt: Double?
     /// Set when the last poll for this account failed; the percentages are then stale.
     public var failure: UsageError?
+    /// When the reading was taken, for sources that read a recorded value rather than poll
+    /// live. Nil means it is as fresh as the last refresh.
+    public var observedAt: Double?
+    /// A name the user typed in Settings, replacing the one discovered from the sign-in.
+    public var customLabel: String?
 
     public var error: String? { failure?.description }
 
-    public init(id: String, label: String, sessionPct: Double? = nil, weeklyPct: Double? = nil,
-                sessionResetsAt: Double? = nil, weeklyResetsAt: Double? = nil, failure: UsageError? = nil) {
+    /// The name to show for this account anywhere a human reads it.
+    public var displayLabel: String { customLabel ?? label }
+
+    public init(id: String, label: String, provider: UsageProvider = .claude,
+                sessionPct: Double? = nil, weeklyPct: Double? = nil,
+                sessionResetsAt: Double? = nil, weeklyResetsAt: Double? = nil,
+                failure: UsageError? = nil, observedAt: Double? = nil) {
         self.id = id
         self.label = label
+        self.provider = provider
         self.sessionPct = sessionPct
         self.weeklyPct = weeklyPct
         self.sessionResetsAt = sessionResetsAt
         self.weeklyResetsAt = weeklyResetsAt
         self.failure = failure
+        self.observedAt = observedAt
     }
 
     public enum Window: String, CaseIterable { case session, weekly }

@@ -24,7 +24,8 @@ final class AppModel: ObservableObject {
     static let rateLimitRetry: TimeInterval = 30
 
     let setup = SetupModel()
-    private let usageFetcher = UsageFetcher()
+    /// Claude first, so the collapsed underline and `primary` stay on a Claude account.
+    private let usageSources: [any UsageSource] = [UsageFetcher(), CodexUsageSource()]
     private let prFetcher = PRFetcher()
     private let settings = Settings.shared
     private var peekQueue: [Event] = []
@@ -104,7 +105,8 @@ final class AppModel: ObservableObject {
 
     func refreshUsage() async {
         let previous = accounts
-        let fresh = await usageFetcher.fetch(previous: previous)
+        var fresh: [AccountUsage] = []
+        for source in usageSources { fresh += await source.fetch(previous: previous).map(named) }
         if !previous.isEmpty { dispatch(EventDiff.usage(old: previous, new: fresh, thresholds: settings.thresholds)) }
         accounts = fresh
         lastUsageAt = Date()
@@ -230,6 +232,26 @@ final class AppModel: ObservableObject {
 
     /// One lowercase line for the PR column when the last fetch failed.
     var prError: String? { prFailure.map { Shell.summary($0, fallback: "pr fetch failed") } }
+
+    /// How old a disk-read reading is, for sources that only move when their tool runs.
+    /// Nil while it is recent enough that saying so would be noise.
+    func staleness(_ account: AccountUsage) -> String? {
+        guard let observedAt = account.observedAt else { return nil }
+        let date = Date(timeIntervalSince1970: observedAt)
+        guard now.timeIntervalSince(date) > 15 * 60 else { return nil }
+        return "as of \(age(date)) ago"
+    }
+
+    /// Re-applies the names typed in Settings to the readings already on screen.
+    func applyAccountNames() { accounts = accounts.map(named) }
+
+    /// Overlays the user's name for an account, if they gave it one.
+    private func named(_ account: AccountUsage) -> AccountUsage {
+        var named = account
+        let custom = settings.accountNames[account.id]?.trimmingCharacters(in: .whitespaces)
+        named.customLabel = custom?.isEmpty == false ? custom : nil
+        return named
+    }
 
     /// The account behind the collapsed underline, per settings.
     var underlineAccount: AccountUsage? {

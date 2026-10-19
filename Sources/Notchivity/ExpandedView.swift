@@ -44,18 +44,20 @@ struct ExpandedView: View {
 
     private var usage: some View {
         VStack(alignment: .leading, spacing: 4) {
-            SectionTitle("Claude usage")
+            SectionTitle("Usage")
             if model.accounts.isEmpty {
                 Text(model.lastUsageAt == nil ? "loading…" : "no Claude sign-in found").font(.body).foregroundStyle(Color.dim)
             }
             ForEach(Array(model.accounts.enumerated()), id: \.element.id) { index, account in
                 if index > 0 { Spacer().frame(height: 10) }
-                usageRow(label: account.label, pct: account.sessionPct,
+                usageRow(label: account.displayLabel, pct: account.sessionPct,
                          sub: model.countdown(account.sessionResetsAt).map { "session · resets \($0)" } ?? "session")
                 usageRow(label: "", pct: account.weeklyPct,
                          sub: model.resetDay(account.weeklyResetsAt).map { "week · resets \($0)" } ?? "week")
                 if let warning = model.usageWarning(account) {
                     Text(warning).font(.detail).foregroundStyle(Color.warn).lineLimit(2)
+                } else if let staleness = model.staleness(account) {
+                    Text(staleness).font(.detail).foregroundStyle(Color.dim).padding(.leading, 60)
                 }
             }
         }

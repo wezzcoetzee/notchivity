@@ -30,7 +30,8 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
     }
 }
 
-public struct UsageFetcher {
+public struct UsageFetcher: UsageSource {
+    public let provider = UsageProvider.claude
     public static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
     public init() {}
