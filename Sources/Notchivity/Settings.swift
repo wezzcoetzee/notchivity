@@ -19,6 +19,8 @@ final class Settings: ObservableObject {
     @Stored("showAge", default: true) var showAge: Bool
     // Usage
     @Stored("underlineAccount", default: "") var underlineAccount: String
+    /// Account id → the name the user typed, replacing the discovered one.
+    @Stored("accountNames", default: [:]) var accountNames: [String: String]
     @Stored("usageInterval", default: 180.0) var usageInterval: Double
     @Stored("thresholds", default: EventDiff.defaultThresholds) var thresholds: [Double]
     // Notifications

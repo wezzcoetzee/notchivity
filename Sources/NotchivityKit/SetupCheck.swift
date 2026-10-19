@@ -60,10 +60,11 @@ public struct SetupDoctor {
     /// `usage` and `prs` are the app's most recent readings when it has them, so the checklist
     /// does not add a second poller against either API. The CLI passes nil and fetches.
     public func run(usage: [AccountUsage]? = nil, prs: PRResult? = nil, extra: [SetupCheck] = []) async -> [SetupCheck] {
-        async let claude = claudeChecks(usage: usage)
+        async let claude = claudeChecks(usage: usage?.filter { $0.provider == .claude })
+        async let codex = codexChecks(usage: usage?.filter { $0.provider == .codex })
         async let github = githubChecks(prs: prs)
-        let results = await (claude, github)
-        return results.0 + results.1 + extra + [slack()]
+        let results = await (claude, codex, github)
+        return results.0 + results.1 + results.2 + extra + [slack()]
     }
 
     func claudeChecks(usage: [AccountUsage]?) async -> [SetupCheck] {
@@ -88,6 +89,17 @@ public struct SetupDoctor {
         return checks + usageChecks(readings, includeCount: false)
     }
 
+    /// Codex is optional: nothing here blocks setup, and an unsigned-in Codex shows nothing
+    /// at all rather than a row the user cannot act on.
+    func codexChecks(usage: [AccountUsage]?) async -> [SetupCheck] {
+        let readings = if let usage { usage } else { await CodexUsageSource().fetch(previous: []) }
+        return readings.map { reading in
+            SetupCheck(id: "usage.\(reading.id)", title: "usage for Codex",
+                       status: reading.failure == nil ? .pass : .warn,
+                       detail: reading.failure?.description ?? usageDetail(reading), required: false)
+        }
+    }
+
     func usageChecks(_ readings: [AccountUsage], includeCount: Bool = true) -> [SetupCheck] {
         guard !readings.isEmpty else {
             return [SetupCheck(id: "accounts", title: "no Claude sign-in found", status: .fail,
@@ -97,20 +109,24 @@ public struct SetupDoctor {
         var checks: [SetupCheck] = []
         if includeCount {
             checks.append(SetupCheck(id: "accounts", title: plural(readings.count, "Claude account") + " found",
-                                     status: .pass, detail: readings.map(\.label).joined(separator: ", ")))
+                                     status: .pass, detail: readings.map(\.displayLabel).joined(separator: ", ")))
         }
         for reading in readings {
             if let failure = reading.failure {
                 // A 429 clears on its own; it should not hold the checklist open.
-                checks.append(SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.label)",
+                checks.append(SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)",
                                          status: failure == .http(429) ? .warn : .fail,
                                          detail: failure.description, fix: failure.fix))
             } else {
-                checks.append(SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.label)", status: .pass,
-                                         detail: "session \(Int(reading.sessionPct ?? 0))% · week \(Int(reading.weeklyPct ?? 0))%"))
+                checks.append(SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)", status: .pass,
+                                         detail: usageDetail(reading)))
             }
         }
         return checks
+    }
+
+    func usageDetail(_ reading: AccountUsage) -> String {
+        "session \(Int(reading.sessionPct ?? 0))% · week \(Int(reading.weeklyPct ?? 0))%"
     }
 
     func githubChecks(prs: PRResult?) async -> [SetupCheck] {

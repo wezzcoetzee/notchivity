@@ -1,6 +1,6 @@
 # Notchivity
 
-A macOS notch app that shows Claude usage across every signed-in account and the status of your open pull requests. Hover the notch to expand it. Events (CI failed, approved, ready to merge, usage thresholds, limit resets) drop a short peek out of the notch and can post to Notification Center.
+A macOS notch app that shows Claude and Codex usage across every signed-in account and the status of your open pull requests. Hover the notch to expand it. Events (CI failed, approved, ready to merge, usage thresholds, limit resets) drop a short peek out of the notch and can post to Notification Center.
 
 It replaces two earlier tools: [tokengochi](../tokengochi) (usage) and [pr-tracker](../pr-tracker) (PRs). 
 
@@ -30,7 +30,7 @@ Slack settings are written to `~/.config/notchivity/config.json`; everything els
 
 ## Setup check
 
-On launch the app runs a checklist: Claude sign-in found, usage readable per account, `gh` installed and signed in, PR query works, plus optional notifications, Slack and launch at login. Until every required item has passed once, hovering the notch shows the checklist instead of the dashboard and the collapsed notch reads "N to set up"; after that, a failing fetch shows as an inline line on the dashboard. Each row has a one-click fix and the list rechecks itself every 10 seconds. Bring it back any time from the right-click menu ("Setup check").
+On launch the app runs a checklist: Claude sign-in found, usage readable per account, Codex usage if Codex is signed in, `gh` installed and signed in, PR query works, plus optional notifications, Slack and launch at login. Until every required item has passed once, hovering the notch shows the checklist instead of the dashboard and the collapsed notch reads "N to set up"; after that, a failing fetch shows as an inline line on the dashboard. Each row has a one-click fix and the list rechecks itself every 10 seconds. Bring it back any time from the right-click menu ("Setup check").
 
 The same checks from the terminal:
 
@@ -42,7 +42,8 @@ Exit code 1 when a required check fails.
 
 ## Data
 
-- **Usage**: every 3 minutes by default (Settings › Usage), for `~/.claude` and each `~/.claude-*` sibling. The OAuth token is read from the Keychain item Claude Code created (first run shows one "wants to use confidential information" prompt per account; click Always Allow). Token refresh belongs to Claude Code / T3 Code; a 401 means neither has run for a while.
+- **Claude usage**: every 3 minutes by default (Settings › Usage), for `~/.claude` and each `~/.claude-*` sibling. The OAuth token is read from the Keychain item Claude Code created (first run shows one "wants to use confidential information" prompt per account; click Always Allow). Token refresh belongs to Claude Code / T3 Code; a 401 means neither has run for a while.
+- **Codex usage**: read from disk on the same interval. Codex records its rate limits in the rollout log of every session (`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`), so there is no token and no second caller on OpenAI's API; `primary` is the session window and `secondary` the week. The row only appears when `~/.codex/auth.json` exists. The freshest reading is selected by its event timestamp across all sessions, including older sessions that have resumed. The reading only moves when Codex runs, so the panel says "as of Nh ago" once it is over 15 minutes old, and a window whose reset time has passed reads as empty again.
 - **PRs**: every 60 seconds via `gh api graphql` for `is:pr is:open author:@me`. Uses your existing `gh auth`.
 - PRs refetch when you open the panel if the last fetch is more than a few seconds old. Usage never polls more often than its interval.
 

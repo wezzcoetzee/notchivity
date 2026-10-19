@@ -6,11 +6,11 @@ product
 
 ## Users
 
-One developer (Wesley) on macOS, working in an editor or terminal all day with several Claude Code accounts and a handful of open GitHub pull requests. The notch sits in peripheral vision. The job is a half-second glance: is anything on fire, how much Claude budget is left, when does it reset. Hovering is the only deliberate interaction; everything else is passive.
+One developer (Wesley) on macOS, working in an editor or terminal all day with several Claude Code accounts and a handful of open GitHub pull requests. The notch sits in peripheral vision. The job is a half-second glance: is anything on fire, how much Claude and Codex budget is left, when does it reset. Hovering is the only deliberate interaction; everything else is passive.
 
 ## Product Purpose
 
-Notchivity turns the hardware notch into a status instrument for Claude usage and PR health. It replaced three tools (boringNotch, tokengochi, pr-tracker) so that one app owns the notch and one poller talks to the usage API. Success means the user never opens GitHub or the Claude usage page to check state, and never misses a CI failure, a review request, or an approaching usage limit. Events surface once as a short peek, then get out of the way.
+Notchivity turns the hardware notch into a status instrument for coding-subscription usage and PR health. It replaced three tools (boringNotch, tokengochi, pr-tracker) so that one app owns the notch and one poller talks to the usage API. Success means the user never opens GitHub or the Claude usage page to check state, and never misses a CI failure, a review request, or an approaching usage limit. Events surface once as a short peek, then get out of the way.
 
 ## Brand Personality
 

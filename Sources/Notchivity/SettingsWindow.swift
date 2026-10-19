@@ -200,7 +200,13 @@ struct SettingsView: View {
     private var usage: some View {
         VStack(alignment: .leading, spacing: 0) {
             segmented("Account for the tab underline", $settings.underlineAccount,
-                      options: [("", "first")] + model.accounts.map { ($0.id, $0.label) })
+                      options: [("", "first")] + model.accounts.map { ($0.id, $0.displayLabel) })
+            if !model.accounts.isEmpty {
+                section("Names")
+                ForEach(model.accounts) { account in
+                    field(account.label, detail: account.provider.name, placeholder: account.label, accountName(account.id))
+                }
+            }
             segmented("Poll interval", $settings.usageInterval, options: [120.0, 180.0, 300.0, 600.0].map { ($0, "\(Int($0 / 60)) min") })
             row("Notify when usage crosses", detail: "percentages, applies to session and week") { EmptyView() }
             HStack(spacing: 6) {
@@ -234,6 +240,13 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
         }
+    }
+
+    /// Writes straight through so the notch shows the new name as it is typed; blank
+    /// falls back to the name discovered from the sign-in.
+    private func accountName(_ id: String) -> Binding<String> {
+        Binding(get: { settings.accountNames[id] ?? "" },
+                set: { settings.accountNames[id] = $0; model.applyAccountNames() })
     }
 
     /// The typed threshold, if it is a new percentage in 1...100.

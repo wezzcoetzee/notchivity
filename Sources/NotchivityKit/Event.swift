@@ -101,15 +101,15 @@ public enum EventDiff {
                 let spare = new.first { $0.id != account.id && ($0.pct(window) ?? 100) < 50 }
                 if let crossed = thresholds.sorted().last(where: { then < $0 && now >= $0 }) {
                     let reset = account.resetsAt(window).map { TimeFormatting.countdown(secondsRemaining: Int($0 - Date().timeIntervalSince1970)) }
-                    var detail = [reset.map { "resets \($0)" }, spare.map { "\($0.label) has \(100 - Int($0.pct(window) ?? 0))% free" }]
+                    var detail = [reset.map { "resets \($0)" }, spare.map { "\($0.displayLabel) has \(100 - Int($0.pct(window) ?? 0))% free" }]
                         .compactMap { $0 }.joined(separator: " · ")
                     if detail.isEmpty { detail = window.rawValue }
                     events.append(.init(kind: .usageThreshold,
-                                        headline: "\(account.label) \(window.rawValue) at \(Int(crossed))%",
+                                        headline: "\(account.displayLabel) \(window.rawValue) at \(Int(crossed))%",
                                         detail: detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim))
                 }
                 if then >= 20 && now < then - 15 {
-                    events.append(.init(kind: .limitReset, headline: "\(account.label) \(window.rawValue) window reset",
+                    events.append(.init(kind: .limitReset, headline: "\(account.displayLabel) \(window.rawValue) window reset",
                                         detail: "\(Int(then))% → \(Int(now))%", tone: .info))
                 }
             }
