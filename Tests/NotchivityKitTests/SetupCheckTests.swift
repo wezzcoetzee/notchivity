@@ -31,4 +31,19 @@ import Testing
         #expect(report.hasSuffix("1 problem"))
         #expect(report.contains("→ copy brew install gh"))
     }
+
+    @Test func grokChecksAreOptionalAndDescribeOnlyItsAllowance() async {
+        let doctor = SetupDoctor()
+        #expect(await doctor.grokChecks(usage: []).isEmpty)
+        let readings = [
+            AccountUsage(id: "grok", label: "grok", provider: .grok, weeklyPct: 64),
+            AccountUsage(id: "monthly", label: "grok", provider: .grok, monthlyPct: 25),
+            AccountUsage(id: "missing", label: "grok", provider: .grok, failure: .unreadable),
+        ]
+        let checks = await doctor.grokChecks(usage: readings)
+        #expect(checks.map(\.status) == [.pass, .pass, .warn])
+        #expect(checks[0].detail == "week 64%")
+        #expect(checks[1].detail == "month 25%")
+        #expect(checks.allSatisfy { !$0.required && !$0.blocking })
+    }
 }

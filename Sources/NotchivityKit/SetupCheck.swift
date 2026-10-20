@@ -62,9 +62,10 @@ public struct SetupDoctor {
     public func run(usage: [AccountUsage]? = nil, prs: PRResult? = nil, extra: [SetupCheck] = []) async -> [SetupCheck] {
         async let claude = claudeChecks(usage: usage?.filter { $0.provider == .claude })
         async let codex = codexChecks(usage: usage?.filter { $0.provider == .codex })
+        async let grok = grokChecks(usage: usage?.filter { $0.provider == .grok })
         async let github = githubChecks(prs: prs)
-        let results = await (claude, codex, github)
-        return results.0 + results.1 + results.2 + extra + [slack()]
+        let results = await (claude, codex, grok, github)
+        return results.0 + results.1 + results.2 + results.3 + extra + [slack()]
     }
 
     func claudeChecks(usage: [AccountUsage]?) async -> [SetupCheck] {
@@ -93,8 +94,17 @@ public struct SetupDoctor {
     /// at all rather than a row the user cannot act on.
     func codexChecks(usage: [AccountUsage]?) async -> [SetupCheck] {
         let readings = if let usage { usage } else { await CodexUsageSource().fetch(previous: []) }
+        return optionalUsageChecks(readings)
+    }
+
+    func grokChecks(usage: [AccountUsage]?) async -> [SetupCheck] {
+        let readings = if let usage { usage } else { await GrokUsageSource().fetch(previous: []) }
+        return optionalUsageChecks(readings)
+    }
+
+    private func optionalUsageChecks(_ readings: [AccountUsage]) -> [SetupCheck] {
         return readings.map { reading in
-            SetupCheck(id: "usage.\(reading.id)", title: "usage for Codex",
+            SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.provider.name)",
                        status: reading.failure == nil ? .pass : .warn,
                        detail: reading.failure?.description ?? usageDetail(reading), required: false)
         }
@@ -126,7 +136,10 @@ public struct SetupDoctor {
     }
 
     func usageDetail(_ reading: AccountUsage) -> String {
-        "session \(Int(reading.sessionPct ?? 0))% · week \(Int(reading.weeklyPct ?? 0))%"
+        reading.windows.map { window in
+            let value = reading.pct(window).map { "\(Int($0))%" } ?? "unknown"
+            return "\(window.label) \(value)"
+        }.joined(separator: " · ")
     }
 
     func githubChecks(prs: PRResult?) async -> [SetupCheck] {
