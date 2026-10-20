@@ -6,7 +6,7 @@ product
 
 ## Users
 
-One developer (Wesley) on macOS, working in an editor or terminal all day with several Claude Code accounts and a handful of open GitHub pull requests. The notch sits in peripheral vision. The job is a half-second glance: is anything on fire, how much Claude and Codex budget is left, when does it reset. Hovering is the only deliberate interaction; everything else is passive.
+One developer (Wesley) on macOS, working in an editor or terminal all day with several Claude Code accounts and a handful of open GitHub pull requests. The notch sits in peripheral vision. The job is a half-second glance: is anything on fire, how much Claude, Codex and Grok Build budget is left, when does it reset. Hovering is the only deliberate interaction; everything else is passive.
 
 ## Product Purpose
 

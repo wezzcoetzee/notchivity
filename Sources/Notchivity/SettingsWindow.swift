@@ -208,7 +208,7 @@ struct SettingsView: View {
                 }
             }
             segmented("Poll interval", $settings.usageInterval, options: [120.0, 180.0, 300.0, 600.0].map { ($0, "\(Int($0 / 60)) min") })
-            row("Notify when usage crosses", detail: "percentages, applies to session and week") { EmptyView() }
+            row("Notify when usage crosses", detail: "percentages, applies to every usage window") { EmptyView() }
             HStack(spacing: 6) {
                 ForEach(settings.thresholds, id: \.self) { value in
                     chip {
@@ -284,7 +284,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             toggle("Show on external displays too", detail: "screens without a notch get a black tab at the top centre", $settings.externalDisplays)
             section("In the tab")
-            toggle("Usage", detail: "session % and underline for the chosen account", $settings.collapsedUsage)
+            toggle("Usage", detail: "usage % and underline for the chosen account", $settings.collapsedUsage)
             segmented("PRs", Binding(get: { settings.indicator }, set: { settings.indicator = $0 }),
                       options: [(.counts, "counts"), (.dots, "dots"), (.none, "nothing")])
             segmented("Hover delay", $settings.hoverDelayMs, options: [0, 120, 250, 500].map { ($0, "\($0) ms") })

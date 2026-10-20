@@ -25,7 +25,7 @@ final class AppModel: ObservableObject {
 
     let setup = SetupModel()
     /// Claude first, so the collapsed underline and `primary` stay on a Claude account.
-    private let usageSources: [any UsageSource] = [UsageFetcher(), CodexUsageSource()]
+    private let usageSources: [any UsageSource] = [UsageFetcher(), CodexUsageSource(), GrokUsageSource()]
     private let prFetcher = PRFetcher()
     private let settings = Settings.shared
     private var peekQueue: [Event] = []

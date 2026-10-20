@@ -1,6 +1,6 @@
 ---
 name: Notchivity
-description: A macOS notch instrument for Claude usage and pull request status
+description: A macOS notch instrument for coding-subscription usage and pull request status
 colors:
   panel-black: "#000000"
   reading-white: "#FFFFFF"
@@ -171,7 +171,7 @@ Flat. There are no shadows anywhere. Depth comes from three things: the black pa
 The signature component. A black `UnevenRoundedRectangle` with only the bottom corners rounded: 12px collapsed, 22px expanded or peeking. Width is the hardware notch when collapsed, 440px for a peek, 720px expanded. Shape animates with ease-out over 220ms; content fades in over 120ms after a 200ms delay and is removed instantly on the way back.
 
 ### Collapsed Tab (external displays only)
-- **Content:** session percentage in Detail size, a 2px usage bar, and either counts (Fault Red failing, Caution Amber needs action) or up to eight 5px category dots.
+- **Content:** the chosen account’s first available window percentage in Detail size, a 2px usage bar, and either counts (Fault Red failing, Caution Amber needs action) or up to eight 5px category dots.
 - **Rule:** on a hardware notch it renders nothing. Only "N to set up" in Caution Amber may override that silence.
 
 ### PR Row
@@ -181,6 +181,9 @@ The signature component. A black `UnevenRoundedRectangle` with only the bottom c
 - **Selected:** background to Track Grey (Cmd-click toggles). A Link line under the list reads "ask for review in Slack · 3 selected · clear".
 
 ### Usage Row
+
+Claude and Codex show session and weekly rows. Grok Build shows only its weekly or monthly allowance, with the account label on that row. Disk readings older than 15 minutes show their age. An expired Grok period shows unknown usage until a new billing snapshot arrives.
+
 - **Layout:** 52px label column, capsule bar, 40px right-aligned percentage with monospaced digits.
 - **Bar:** 5px capsule, Track Grey behind, fill white under 75%, Caution Amber to 89%, Fault Red from 90%. Minimum fill width equals bar height.
 - **Sub-line:** Detail size in Dimmed Grey, indented 60px ("session · 2h 10m", "week · resets Thu").

@@ -1,6 +1,6 @@
 # Notchivity
 
-A macOS notch app that shows Claude and Codex usage across every signed-in account and the status of your open pull requests. Hover the notch to expand it. Events (CI failed, approved, ready to merge, usage thresholds, limit resets) drop a short peek out of the notch and can post to Notification Center.
+A macOS notch app that shows Claude, Codex and Grok Build usage across every signed-in account and the status of your open pull requests. Hover the notch to expand it. Events (CI failed, approved, ready to merge, usage thresholds, limit resets) drop a short peek out of the notch and can post to Notification Center.
 
 It replaces two earlier tools: [tokengochi](../tokengochi) (usage) and [pr-tracker](../pr-tracker) (PRs). 
 
@@ -8,9 +8,9 @@ It replaces two earlier tools: [tokengochi](../tokengochi) (usage) and [pr-track
 
 | State | When | Shows |
 |---|---|---|
-| Collapsed | always | On a hardware notch: nothing, the shape matches the notch exactly. On other displays the black tab shows the session % with a 2pt underline and the failing and needs-action PR counts, each switchable in Displays |
+| Collapsed | always | On a hardware notch: nothing, the shape matches the notch exactly. On other displays the black tab shows the usage % with a 2pt underline and the failing and needs-action PR counts, each switchable in Displays |
 | Peek | for 3 s after an event | One line: what happened, on which PR or account |
-| Expanded | while hovered | Accounts with session and weekly bars and reset times on the left, open PRs grouped failing → needs action → ready → awaiting review on the right |
+| Expanded | while hovered | Accounts with their available usage windows and reset times on the left, open PRs grouped failing → needs action → ready → awaiting review on the right |
 
 Click a PR row to open it. Right-click a row for copy URL or "Ask for review in Slack". Cmd-click rows (or right-click › Select) to pick several, then "ask for review in Slack" under the list sends them as one message. Right-click anywhere else for refresh, setup check, settings, quit. When the list is longer than the row limit it ends in a "view all" link (or scrolls, per settings).
 
@@ -30,7 +30,7 @@ Slack settings are written to `~/.config/notchivity/config.json`; everything els
 
 ## Setup check
 
-On launch the app runs a checklist: Claude sign-in found, usage readable per account, Codex usage if Codex is signed in, `gh` installed and signed in, PR query works, plus optional notifications, Slack and launch at login. Until every required item has passed once, hovering the notch shows the checklist instead of the dashboard and the collapsed notch reads "N to set up"; after that, a failing fetch shows as an inline line on the dashboard. Each row has a one-click fix and the list rechecks itself every 10 seconds. Bring it back any time from the right-click menu ("Setup check").
+On launch the app runs a checklist: Claude sign-in found, usage readable per account, Codex and Grok Build usage when signed in, `gh` installed and signed in, PR query works, plus optional notifications, Slack and launch at login. Until every required item has passed once, hovering the notch shows the checklist instead of the dashboard and the collapsed notch reads "N to set up"; after that, a failing fetch shows as an inline line on the dashboard. Each row has a one-click fix and the list rechecks itself every 10 seconds. Bring it back any time from the right-click menu ("Setup check").
 
 The same checks from the terminal:
 
@@ -44,6 +44,7 @@ Exit code 1 when a required check fails.
 
 - **Claude usage**: every 3 minutes by default (Settings › Usage), for `~/.claude` and each `~/.claude-*` sibling. The OAuth token is read from the Keychain item Claude Code created (first run shows one "wants to use confidential information" prompt per account; click Always Allow). Token refresh belongs to Claude Code / T3 Code; a 401 means neither has run for a while.
 - **Codex usage**: read from disk on the same interval. Codex records its rate limits in the rollout log of every session (`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`), so there is no token and no second caller on OpenAI's API; `primary` is the session window and `secondary` the week. The row only appears when `~/.codex/auth.json` exists. The freshest reading is selected by its event timestamp across all sessions, including older sessions that have resumed. The reading only moves when Codex runs, so the panel says "as of Nh ago" once it is over 15 minutes old, and a window whose reset time has passed reads as empty again.
+- **Grok Build usage**: read from `~/.grok/logs/unified.jsonl` on the same interval. Grok Build logs its included credit allowance after billing fetches (including `/usage`). The row appears when `~/.grok/auth.json` exists; credentials are never read and no API requests are made. The freshest timestamp wins, and the last reading survives log trimming while the app runs. Only the actual allowance window is shown: weekly or monthly, including legacy monthly credits. This is the subscription allowance, which can be shared across Grok products, rather than session token counts or API spending. Readings over 15 minutes old show "as of Nh ago". After the recorded period ends, usage becomes unknown until Grok records another snapshot; it is never assumed to be 0%. If no snapshot exists, open `grok` and run `/usage` (update Grok Build if its version does not log billing snapshots). `GROK_HOME` and `GROK_AUTH_PATH` overrides are supported when present in Notchivity's launch environment. Grok checks are optional and never block setup. The log schema follows [Grok Build's billing implementation](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-shell/src/extensions/billing.rs).
 - **PRs**: every 60 seconds via `gh api graphql` for `is:pr is:open author:@me`. Uses your existing `gh auth`.
 - PRs refetch when you open the panel if the last fetch is more than a few seconds old. Usage never polls more often than its interval.
 
@@ -54,6 +55,8 @@ Exit code 1 when a required check fails.
 | CI failed, conflicts, changes requested, approved, ready to merge | yes | yes |
 | Usage crossed a threshold (50 / 75 / 90 / 100 by default) | yes | yes |
 | New review comments, merged, limit reset, fetch failing | yes | no |
+
+The collapsed underline uses the chosen account's first available window: session for Claude/Codex, or the allowance period for Grok Build.
 
 Usage peeks at 90 %+ mention the other account when it has headroom. Thresholds fire once per crossing; a reset re-arms them. Nothing fires on the first fetch after launch.
 
@@ -91,7 +94,7 @@ The bundle is ad-hoc signed. On another Mac the first launch needs right-click �
 swift test
 ```
 
-Covers account discovery, PR categorisation and GraphQL decoding, and the event diff.
+Covers account discovery, Codex and Grok usage parsing, snapshot freshness and expiry, setup diagnostics, PR categorisation and GraphQL decoding, and the event diff.
 
 ## Layout
 

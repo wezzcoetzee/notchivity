@@ -78,7 +78,7 @@ struct CollapsedView: View {
             } else if geometry.isFake {
                 HStack(spacing: 10) {
                     if settings.collapsedUsage {
-                        let pct = model.underlineAccount?.sessionPct
+                        let pct = model.underlineAccount?.primaryPct
                         if let pct { Text("\(Int(pct))%").foregroundStyle(Color.usage(pct)) }
                         Bar(pct: pct, height: 2)
                     } else {

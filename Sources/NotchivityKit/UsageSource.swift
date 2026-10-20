@@ -1,14 +1,14 @@
 import Foundation
 
-/// Which coding subscription a reading came from. Readings are otherwise interchangeable:
-/// both providers expose a short session window and a weekly one.
+/// Which coding subscription a reading came from.
 public enum UsageProvider: String, Codable, CaseIterable, Sendable {
-    case claude, codex
+    case claude, codex, grok
 
     public var name: String {
         switch self {
         case .claude: return "Claude"
         case .codex: return "Codex"
+        case .grok: return "Grok Build"
         }
     }
 }

@@ -50,10 +50,14 @@ struct ExpandedView: View {
             }
             ForEach(Array(model.accounts.enumerated()), id: \.element.id) { index, account in
                 if index > 0 { Spacer().frame(height: 10) }
-                usageRow(label: account.displayLabel, pct: account.sessionPct,
-                         sub: model.countdown(account.sessionResetsAt).map { "session · resets \($0)" } ?? "session")
-                usageRow(label: "", pct: account.weeklyPct,
-                         sub: model.resetDay(account.weeklyResetsAt).map { "week · resets \($0)" } ?? "week")
+                ForEach(account.windows, id: \.self) { window in
+                    let reset = window == .session
+                        ? model.countdown(account.resetsAt(window))
+                        : model.resetDay(account.resetsAt(window))
+                    usageRow(label: window == account.windows.first ? account.displayLabel : "",
+                             pct: account.pct(window),
+                             sub: reset.map { "\(window.label) · resets \($0)" } ?? window.label)
+                }
                 if let warning = model.usageWarning(account) {
                     Text(warning).font(.detail).foregroundStyle(Color.warn).lineLimit(2)
                 } else if let staleness = model.staleness(account) {
