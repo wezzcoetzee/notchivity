@@ -15,6 +15,12 @@ if CommandLine.arguments.contains("--doctor") {
     exit(checks.contains(where: \.blocking) ? 1 : 0)
 }
 
+if let index = CommandLine.arguments.firstIndex(of: "--screenshots") {
+    let dir = CommandLine.arguments.dropFirst(index + 1).first ?? "screenshots/raw"
+    MainActor.assumeIsolated { Screenshots.render(to: URL(fileURLWithPath: dir)) }
+    exit(0)
+}
+
 let delegate = MainActor.assumeIsolated { AppDelegate() }
 let app = NSApplication.shared
 app.delegate = delegate

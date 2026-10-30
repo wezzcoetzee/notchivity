@@ -32,6 +32,24 @@ public struct PullRequest: Codable, Equatable, Identifiable {
     /// True once someone other than a bot or the author has reviewed.
     public var reviewedByHuman: Bool
 
+    public init(repo: String, number: Int, title: String, url: URL, branch: String, draft: Bool = false,
+                updatedAt: Date, ci: CIState, conflicts: Bool = false, unresolvedThreads: Int = 0,
+                approvals: Int = 0, changesRequested: Bool = false, reviewedByHuman: Bool = false) {
+        self.repo = repo
+        self.number = number
+        self.title = title
+        self.url = url
+        self.branch = branch
+        self.draft = draft
+        self.updatedAt = updatedAt
+        self.ci = ci
+        self.conflicts = conflicts
+        self.unresolvedThreads = unresolvedThreads
+        self.approvals = approvals
+        self.changesRequested = changesRequested
+        self.reviewedByHuman = reviewedByHuman
+    }
+
     public var id: String { "\(repo)#\(number)" }
     public var repoName: String { repo.split(separator: "/").last.map(String.init) ?? repo }
     public var shortRef: String { "\(repoName)#\(number)" }

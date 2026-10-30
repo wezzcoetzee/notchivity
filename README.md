@@ -4,6 +4,10 @@ A macOS notch app that shows Claude, Codex and Grok Build usage across every sig
 
 It replaces two earlier tools: [tokengochi](../tokengochi) (usage) and [pr-tracker](../pr-tracker) (PRs). 
 
+![Usage and open PRs in the expanded notch](screenshots/framed/expanded.png)
+
+![Events drop out of the notch](screenshots/framed/peek.png)
+
 ## States
 
 | State | When | Shows |
@@ -103,3 +107,13 @@ Sources/NotchivityKit   models, fetchers, EventDiff, SlackNudger (no AppKit)
 Sources/Notchivity      NSPanel over the notch, SwiftUI views, AppModel, Notifier
 Tests/NotchivityKitTests
 ```
+
+## Screenshots
+
+The images above render the real SwiftUI views offscreen with fixed sample data, so no real accounts or PRs appear:
+
+```sh
+swift build && .build/debug/Notchivity --screenshots screenshots/raw
+```
+
+`screenshots/framed/` adds the headline and background at 2880×1800, the Mac App Store size.

@@ -198,6 +198,16 @@ final class AppModel: ObservableObject {
                      detail: "approved · CI ✓", tone: .good)
     }
 
+    /// Fills the model with fixed sample data for `--screenshots`, bypassing every fetch.
+    func loadDemo(me: String, accounts: [AccountUsage], prs: [PullRequest], peek: Event) {
+        self.me = me
+        self.accounts = accounts
+        self.prs = prs
+        self.peek = peek
+        lastUsageAt = now.addingTimeInterval(-12)
+        lastPRsAt = lastUsageAt
+    }
+
     func toggleSelection(_ pr: PullRequest) {
         if selectedPRs.remove(pr.id) == nil { selectedPRs.insert(pr.id) }
     }
