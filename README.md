@@ -100,6 +100,15 @@ swift test
 
 Covers account discovery, Codex and Grok usage parsing, snapshot freshness and expiry, setup diagnostics, PR categorisation and GraphQL decoding, and the event diff.
 
+## Formatting
+
+```sh
+swift format --in-place --recursive Package.swift Sources Tests scripts
+swift format lint --strict --recursive Package.swift Sources Tests scripts
+```
+
+Rules live in `.swift-format` (4-space indent, 160 columns). `swift format` ships with the Swift 6 toolchain.
+
 ## Layout
 
 ```

@@ -1,11 +1,14 @@
 import Foundation
 import Testing
+
 @testable import NotchivityKit
 
 /// A rollout line as Codex writes it, trimmed to the parts the reading needs.
-private func rolloutLine(timestamp: String = "2026-09-14T07:46:16.444Z",
-                         primaryResetsAt: Int = 2_000_000_000,
-                         secondaryResetsAt: Int = 2_000_100_000) -> Data {
+private func rolloutLine(
+    timestamp: String = "2026-09-14T07:46:16.444Z",
+    primaryResetsAt: Int = 2_000_000_000,
+    secondaryResetsAt: Int = 2_000_100_000
+) -> Data {
     let json: [String: Any] = [
         "timestamp": timestamp,
         "type": "event_msg",

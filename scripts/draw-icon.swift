@@ -2,7 +2,7 @@ import AppKit
 
 let size: CGFloat = 1024
 let inset: CGFloat = 100
-let squircle = NSBezierPath(roundedRect: NSRect(x: inset, y: inset, width: size - 2*inset, height: size - 2*inset), xRadius: 185, yRadius: 185)
+let squircle = NSBezierPath(roundedRect: NSRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset), xRadius: 185, yRadius: 185)
 let red = NSColor(red: 0.97, green: 0.32, blue: 0.29, alpha: 1)
 let amber = NSColor(red: 0.82, green: 0.60, blue: 0.13, alpha: 1)
 let green = NSColor(red: 0.25, green: 0.73, blue: 0.31, alpha: 1)
@@ -19,16 +19,16 @@ func render(_ name: String, _ draw: () -> Void) {
 }
 
 func bar(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, pct: CGFloat, color: NSColor) {
-    grey.setFill(); NSBezierPath(roundedRect: NSRect(x: x, y: y, width: w, height: h), xRadius: h/2, yRadius: h/2).fill()
-    color.setFill(); NSBezierPath(roundedRect: NSRect(x: x, y: y, width: max(h, w*pct), height: h), xRadius: h/2, yRadius: h/2).fill()
+    grey.setFill(); NSBezierPath(roundedRect: NSRect(x: x, y: y, width: w, height: h), xRadius: h / 2, yRadius: h / 2).fill()
+    color.setFill(); NSBezierPath(roundedRect: NSRect(x: x, y: y, width: max(h, w * pct), height: h), xRadius: h / 2, yRadius: h / 2).fill()
 }
 func dot(x: CGFloat, y: CGFloat, r: CGFloat, color: NSColor) {
-    color.setFill(); NSBezierPath(ovalIn: NSRect(x: x - r, y: y - r, width: 2*r, height: 2*r)).fill()
+    color.setFill(); NSBezierPath(ovalIn: NSRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r)).fill()
 }
 // The notch tab: a dark tab hanging from the top edge of the icon face.
 func notch(width: CGFloat, height: CGFloat, color: NSColor) {
     let top = size - inset
-    let rect = NSRect(x: (size - width)/2, y: top - height, width: width, height: height)
+    let rect = NSRect(x: (size - width) / 2, y: top - height, width: width, height: height)
     let path = NSBezierPath()
     path.move(to: NSPoint(x: rect.minX, y: top))
     path.line(to: NSPoint(x: rect.minX, y: rect.minY + 60))

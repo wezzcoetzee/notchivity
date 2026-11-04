@@ -9,8 +9,10 @@ public struct CodexReading: Equatable {
     public var weeklyPct: Double?
     public var weeklyResetsAt: Double?
 
-    public init(observedAt: Double, sessionPct: Double? = nil, sessionResetsAt: Double? = nil,
-                weeklyPct: Double? = nil, weeklyResetsAt: Double? = nil) {
+    public init(
+        observedAt: Double, sessionPct: Double? = nil, sessionResetsAt: Double? = nil,
+        weeklyPct: Double? = nil, weeklyResetsAt: Double? = nil
+    ) {
         self.observedAt = observedAt
         self.sessionPct = sessionPct
         self.sessionResetsAt = sessionResetsAt
@@ -22,16 +24,18 @@ public struct CodexReading: Equatable {
     /// `primary` is the 5 hour window and `secondary` the 7 day one.
     public static func parse(_ line: Data) -> CodexReading? {
         guard let root = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-              let payload = root["payload"] as? [String: Any],
-              let limits = payload["rate_limits"] as? [String: Any] else { return nil }
+            let payload = root["payload"] as? [String: Any],
+            let limits = payload["rate_limits"] as? [String: Any]
+        else { return nil }
         let primary = limits["primary"] as? [String: Any]
         let secondary = limits["secondary"] as? [String: Any]
         guard primary != nil || secondary != nil else { return nil }
-        return CodexReading(observedAt: UsageParsing.epochSeconds(root["timestamp"]) ?? Date().timeIntervalSince1970,
-                            sessionPct: UsageParsing.percentage(primary?["used_percent"]),
-                            sessionResetsAt: UsageParsing.epochSeconds(primary?["resets_at"]),
-                            weeklyPct: UsageParsing.percentage(secondary?["used_percent"]),
-                            weeklyResetsAt: UsageParsing.epochSeconds(secondary?["resets_at"]))
+        return CodexReading(
+            observedAt: UsageParsing.epochSeconds(root["timestamp"]) ?? Date().timeIntervalSince1970,
+            sessionPct: UsageParsing.percentage(primary?["used_percent"]),
+            sessionResetsAt: UsageParsing.epochSeconds(primary?["resets_at"]),
+            weeklyPct: UsageParsing.percentage(secondary?["used_percent"]),
+            weeklyResetsAt: UsageParsing.epochSeconds(secondary?["resets_at"]))
     }
 
     /// A window whose reset time has passed rolled over after this record was written, and
@@ -39,10 +43,11 @@ public struct CodexReading: Equatable {
     public func accountUsage(now: Double) -> AccountUsage {
         let session = expire(pct: sessionPct, resetsAt: sessionResetsAt, now: now)
         let weekly = expire(pct: weeklyPct, resetsAt: weeklyResetsAt, now: now)
-        return AccountUsage(id: CodexUsageSource.accountId, label: CodexUsageSource.label, provider: .codex,
-                            sessionPct: session.pct, weeklyPct: weekly.pct,
-                            sessionResetsAt: session.resetsAt, weeklyResetsAt: weekly.resetsAt,
-                            observedAt: observedAt)
+        return AccountUsage(
+            id: CodexUsageSource.accountId, label: CodexUsageSource.label, provider: .codex,
+            sessionPct: session.pct, weeklyPct: weekly.pct,
+            sessionResetsAt: session.resetsAt, weeklyResetsAt: weekly.resetsAt,
+            observedAt: observedAt)
     }
 
     private func expire(pct: Double?, resetsAt: Double?, now: Double) -> (pct: Double?, resetsAt: Double?) {
@@ -70,8 +75,11 @@ public struct CodexUsageSource: UsageSource {
     public func fetch(previous: [AccountUsage]) async -> [AccountUsage] {
         guard FileManager.default.fileExists(atPath: directory.appendingPathComponent("auth.json").path) else { return [] }
         guard let reading = Self.newestReading(in: directory.appendingPathComponent("sessions")) else {
-            return [AccountUsage(id: Self.accountId, label: Self.label, provider: .codex,
-                                 failure: .other("no usage recorded yet, run codex once"))]
+            return [
+                AccountUsage(
+                    id: Self.accountId, label: Self.label, provider: .codex,
+                    failure: .other("no usage recorded yet, run codex once"))
+            ]
         }
         return [reading.accountUsage(now: Date().timeIntervalSince1970)]
     }

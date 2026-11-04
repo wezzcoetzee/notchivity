@@ -10,8 +10,9 @@ final class SettingsWindowController {
 
     func show(model: AppModel) {
         if window == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: 460),
-                                  styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: 460),
+                styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
             window.title = "Notchivity Settings"
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
@@ -68,7 +69,9 @@ struct SettingsView: View {
     private var tabs: some View {
         HStack(spacing: 18) {
             ForEach(Tab.allCases, id: \.self) { item in
-                Button { tab = item } label: {
+                Button {
+                    tab = item
+                } label: {
                     Text(item.rawValue)
                         .font(.body)
                         .foregroundStyle(tab == item ? .white : Color.dim)
@@ -104,12 +107,16 @@ struct SettingsView: View {
         }
     }
 
-    private func segmented<Value: Hashable>(_ title: String, detail: String? = nil, _ binding: Binding<Value>,
-                                            options: [(Value, String)]) -> some View {
+    private func segmented<Value: Hashable>(
+        _ title: String, detail: String? = nil, _ binding: Binding<Value>,
+        options: [(Value, String)]
+    ) -> some View {
         row(title, detail: detail) {
             HStack(spacing: 0) {
                 ForEach(Array(options.enumerated()), id: \.offset) { _, option in
-                    Button { binding.wrappedValue = option.0 } label: {
+                    Button {
+                        binding.wrappedValue = option.0
+                    } label: {
                         Text(option.1)
                             .font(.detail)
                             .padding(.horizontal, 9).padding(.vertical, 3)
@@ -158,22 +165,30 @@ struct SettingsView: View {
 
     private var general: some View {
         VStack(alignment: .leading, spacing: 0) {
-            toggle("Launch at login", detail: inApplications ? nil : "move the app to /Applications first",
-                   Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }), disabled: !inApplications)
+            toggle(
+                "Launch at login", detail: inApplications ? nil : "move the app to /Applications first",
+                Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }), disabled: !inApplications)
             section("Slack review nudges")
             field("Channel ID", placeholder: "C0123456789", Binding(get: { slack.slackChannel ?? "" }, set: { slack.slackChannel = $0 }))
-            field("Bot token", detail: "optional, falls back to claude -p", placeholder: "xoxb-…",
-                  Binding(get: { slack.slackBotToken ?? "" }, set: { slack.slackBotToken = $0 }), secure: true)
+            field(
+                "Bot token", detail: "optional, falls back to claude -p", placeholder: "xoxb-…",
+                Binding(get: { slack.slackBotToken ?? "" }, set: { slack.slackBotToken = $0 }), secure: true)
             HStack {
                 Spacer()
                 link(slackSaveStatus ?? "Save") {
                     do { try slack.save(); slackSaveStatus = "Saved" } catch { slackSaveStatus = "save failed" }
-                    Task { try? await Task.sleep(for: .seconds(2)); slackSaveStatus = nil }
+                    Task {
+                        try? await Task.sleep(for: .seconds(2)); slackSaveStatus = nil
+                    }
                 }
             }
             .padding(.top, 10)
             section("About")
-            row("Setup check") { link("Run") { model.setup.pinned = true; Task { await model.setup.run() } } }
+            row("Setup check") {
+                link("Run") {
+                    model.setup.pinned = true; Task { await model.setup.run() }
+                }
+            }
             row("Version") { Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev").foregroundStyle(Color.dim) }
             row("Quit Notchivity", detail: "removes the panel from the notch until you open the app again") {
                 link("Quit") { NSApp.terminate(nil) }
@@ -187,8 +202,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             row("Category order", detail: "drag to reorder, leftmost is listed first") { EmptyView() }
             CategoryOrderView(order: Binding(get: { settings.categoryOrder }, set: { settings.categoryOrder = $0 }))
-            segmented("When the list is long", Binding(get: { settings.overflow }, set: { settings.overflow = $0 }),
-                      options: [(.viewAll, "view all"), (.scroll, "scroll")])
+            segmented(
+                "When the list is long", Binding(get: { settings.overflow }, set: { settings.overflow = $0 }),
+                options: [(.viewAll, "view all"), (.scroll, "scroll")])
             segmented("Rows before overflow", $settings.rowsBeforeOverflow, options: [4, 6, 8, 10, 12].map { ($0, "\($0)") })
             toggle("Hide drafts", $settings.hideDrafts)
             toggle("Show age", $settings.showAge)
@@ -199,8 +215,9 @@ struct SettingsView: View {
 
     private var usage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            segmented("Account for the tab underline", $settings.underlineAccount,
-                      options: [("", "first")] + model.accounts.map { ($0.id, $0.displayLabel) })
+            segmented(
+                "Account for the tab underline", $settings.underlineAccount,
+                options: [("", "first")] + model.accounts.map { ($0.id, $0.displayLabel) })
             if !model.accounts.isEmpty {
                 section("Names")
                 ForEach(model.accounts) { account in
@@ -213,7 +230,9 @@ struct SettingsView: View {
                 ForEach(settings.thresholds, id: \.self) { value in
                     chip {
                         Text("\(Int(value))%").font(.detail)
-                        Button { settings.thresholds.removeAll { $0 == value } } label: {
+                        Button {
+                            settings.thresholds.removeAll { $0 == value }
+                        } label: {
                             Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Color.dim)
                         }
                         .buttonStyle(.plain)
@@ -245,8 +264,11 @@ struct SettingsView: View {
     /// Writes straight through so the notch shows the new name as it is typed; blank
     /// falls back to the name discovered from the sign-in.
     private func accountName(_ id: String) -> Binding<String> {
-        Binding(get: { settings.accountNames[id] ?? "" },
-                set: { settings.accountNames[id] = $0; model.applyAccountNames() })
+        Binding(
+            get: { settings.accountNames[id] ?? "" },
+            set: {
+                settings.accountNames[id] = $0; model.applyAccountNames()
+            })
     }
 
     /// The typed threshold, if it is a new percentage in 1...100.
@@ -272,8 +294,9 @@ struct SettingsView: View {
                 Text("needs the .app bundle from make-app.sh").font(.detail).foregroundStyle(Color.dim)
             }
             ForEach(Event.Kind.allCases, id: \.self) { kind in
-                toggle(kind.title, Binding(get: { settings.notifies(kind) }, set: { settings.setNotifies(kind, $0) }),
-                       disabled: !Notifier.shared.available)
+                toggle(
+                    kind.title, Binding(get: { settings.notifies(kind) }, set: { settings.setNotifies(kind, $0) }),
+                    disabled: !Notifier.shared.available)
             }
         }
     }
@@ -285,8 +308,9 @@ struct SettingsView: View {
             toggle("Show on external displays too", detail: "screens without a notch get a black tab at the top centre", $settings.externalDisplays)
             section("In the tab")
             toggle("Usage", detail: "usage % and underline for the chosen account", $settings.collapsedUsage)
-            segmented("PRs", Binding(get: { settings.indicator }, set: { settings.indicator = $0 }),
-                      options: [(.counts, "counts"), (.dots, "dots"), (.none, "nothing")])
+            segmented(
+                "PRs", Binding(get: { settings.indicator }, set: { settings.indicator = $0 }),
+                options: [(.counts, "counts"), (.dots, "dots"), (.none, "nothing")])
             segmented("Hover delay", $settings.hoverDelayMs, options: [0, 120, 250, 500].map { ($0, "\($0) ms") })
         }
     }

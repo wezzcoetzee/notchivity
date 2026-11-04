@@ -104,13 +104,17 @@ public enum EventDiff {
                     var detail = [reset.map { "resets \($0)" }, spare.map { "\($0.displayLabel) has \(100 - Int($0.pct(window) ?? 0))% free" }]
                         .compactMap { $0 }.joined(separator: " · ")
                     if detail.isEmpty { detail = window.rawValue }
-                    events.append(.init(kind: .usageThreshold,
-                                        headline: "\(account.displayLabel) \(window.rawValue) at \(Int(crossed))%",
-                                        detail: detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim))
+                    events.append(
+                        .init(
+                            kind: .usageThreshold,
+                            headline: "\(account.displayLabel) \(window.rawValue) at \(Int(crossed))%",
+                            detail: detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim))
                 }
                 if then >= 20 && now < then - 15 {
-                    events.append(.init(kind: .limitReset, headline: "\(account.displayLabel) \(window.rawValue) window reset",
-                                        detail: "\(Int(then))% → \(Int(now))%", tone: .info))
+                    events.append(
+                        .init(
+                            kind: .limitReset, headline: "\(account.displayLabel) \(window.rawValue) window reset",
+                            detail: "\(Int(then))% → \(Int(now))%", tone: .info))
                 }
             }
         }

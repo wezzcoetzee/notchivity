@@ -37,8 +37,9 @@ struct GrokReading: Equatable {
 
     static func parse(_ line: Data) -> GrokReading? {
         guard let entry = try? JSONDecoder().decode(Entry.self, from: line),
-              entry.msg == "billing: fetched credits config",
-              let observedAt = UsageParsing.epochSeconds(entry.ts) else { return nil }
+            entry.msg == "billing: fetched credits config",
+            let observedAt = UsageParsing.epochSeconds(entry.ts)
+        else { return nil }
         let config = entry.ctx.config
         let window: AccountUsage.Window
         let percentage: Double
@@ -60,17 +61,19 @@ struct GrokReading: Equatable {
             return nil
         }
         guard percentage.isFinite, let resetsAt = UsageParsing.epochSeconds(end) else { return nil }
-        return GrokReading(observedAt: observedAt, window: window,
-                           percentage: min(100, max(0, percentage)), resetsAt: resetsAt)
+        return GrokReading(
+            observedAt: observedAt, window: window,
+            percentage: min(100, max(0, percentage)), resetsAt: resetsAt)
     }
 
     var accountUsage: AccountUsage {
-        AccountUsage(id: GrokUsageSource.accountId, label: "grok", provider: .grok,
-                     weeklyPct: window == .weekly ? percentage : nil,
-                     weeklyResetsAt: window == .weekly ? resetsAt : nil,
-                     observedAt: observedAt,
-                     monthlyPct: window == .monthly ? percentage : nil,
-                     monthlyResetsAt: window == .monthly ? resetsAt : nil)
+        AccountUsage(
+            id: GrokUsageSource.accountId, label: "grok", provider: .grok,
+            weeklyPct: window == .weekly ? percentage : nil,
+            weeklyResetsAt: window == .weekly ? resetsAt : nil,
+            observedAt: observedAt,
+            monthlyPct: window == .monthly ? percentage : nil,
+            monthlyResetsAt: window == .monthly ? resetsAt : nil)
     }
 }
 
@@ -82,11 +85,15 @@ public struct GrokUsageSource: UsageSource {
     let directory: URL
     let authFile: URL
 
-    public init(home: URL = FileManager.default.homeDirectoryForCurrentUser,
-                environment: [String: String] = ProcessInfo.processInfo.environment) {
-        directory = environment["GROK_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+    public init(
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
+        directory =
+            environment["GROK_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
             ?? home.appendingPathComponent(".grok")
-        authFile = environment["GROK_AUTH_PATH"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        authFile =
+            environment["GROK_AUTH_PATH"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
             ?? directory.appendingPathComponent("auth.json")
     }
 
@@ -95,7 +102,8 @@ public struct GrokUsageSource: UsageSource {
         var usage = previous.first { $0.id == Self.accountId && $0.provider == .grok }
         do {
             if let reading = try Self.newestReading(in: directory.appendingPathComponent("logs/unified.jsonl")),
-               reading.observedAt >= (usage?.observedAt ?? -.infinity) {
+                reading.observedAt >= (usage?.observedAt ?? -.infinity)
+            {
                 usage = reading.accountUsage
             }
         } catch {
@@ -103,8 +111,11 @@ public struct GrokUsageSource: UsageSource {
             failed.failure = .other("Grok usage log unreadable")
             return [failed]
         }
-        var result = usage ?? AccountUsage(id: Self.accountId, label: "grok", provider: .grok,
-                                          failure: .other("no billing snapshot yet, open grok and run /usage"))
+        var result =
+            usage
+            ?? AccountUsage(
+                id: Self.accountId, label: "grok", provider: .grok,
+                failure: .other("no billing snapshot yet, open grok and run /usage"))
         if let reset = result.windows.first.flatMap(result.resetsAt), reset <= Date().timeIntervalSince1970 {
             // A shared pool can be used outside this CLI, so an old snapshot cannot prove 0%.
             result.weeklyPct = nil

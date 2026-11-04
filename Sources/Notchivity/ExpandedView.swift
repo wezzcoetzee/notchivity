@@ -29,7 +29,9 @@ struct ExpandedView: View {
             Text(model.me.isEmpty ? "notchivity" : "\(model.me) · \(model.prs.count) open")
             Spacer()
             Text(model.freshness)
-            Button { SettingsWindowController.shared.show(model: model) } label: {
+            Button {
+                SettingsWindowController.shared.show(model: model)
+            } label: {
                 Image(systemName: "gearshape").font(.system(size: 12))
             }
             .buttonStyle(.plain)
@@ -51,12 +53,14 @@ struct ExpandedView: View {
             ForEach(Array(model.accounts.enumerated()), id: \.element.id) { index, account in
                 if index > 0 { Spacer().frame(height: 10) }
                 ForEach(account.windows, id: \.self) { window in
-                    let reset = window == .session
+                    let reset =
+                        window == .session
                         ? model.countdown(account.resetsAt(window))
                         : model.resetDay(account.resetsAt(window))
-                    usageRow(label: window == account.windows.first ? account.displayLabel : "",
-                             pct: account.pct(window),
-                             sub: reset.map { "\(window.label) · resets \($0)" } ?? window.label)
+                    usageRow(
+                        label: window == account.windows.first ? account.displayLabel : "",
+                        pct: account.pct(window),
+                        sub: reset.map { "\(window.label) · resets \($0)" } ?? window.label)
                 }
                 if let warning = model.usageWarning(account) {
                     Text(warning).font(.detail).foregroundStyle(Color.warn).lineLimit(2)
@@ -144,9 +148,10 @@ struct ExpandedView: View {
 
     private func rows(_ prs: [PullRequest]) -> some View {
         ForEach(prs) { pr in
-            PRRow(pr: pr, age: settings.showAge ? model.age(pr.updatedAt) : nil, slack: model.slackConfigured,
-                  selected: model.selectedPRs.contains(pr.id),
-                  askForReview: { model.askForReview(pr) }, toggleSelection: { model.toggleSelection(pr) })
+            PRRow(
+                pr: pr, age: settings.showAge ? model.age(pr.updatedAt) : nil, slack: model.slackConfigured,
+                selected: model.selectedPRs.contains(pr.id),
+                askForReview: { model.askForReview(pr) }, toggleSelection: { model.toggleSelection(pr) })
         }
     }
 
