@@ -13,8 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notch.show()
         installMainMenu()
         if ProcessInfo.processInfo.environment["NOTCHIVITY_SETTINGS"] != nil { openSettings() }
-        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
-                                               object: nil, queue: .main) { [weak self] _ in
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
             Task { @MainActor in self?.notch.relayout() }
         }
     }

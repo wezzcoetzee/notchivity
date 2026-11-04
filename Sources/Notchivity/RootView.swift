@@ -43,7 +43,9 @@ struct RootView: View {
     @ViewBuilder private var menu: some View {
         Button("Refresh now") { model.refreshAll() }
         if model.peek != nil { Button("Dismiss peek") { model.dismissPeek() } }
-        Button("Setup check") { setup.pinned = true; Task { await setup.run() } }
+        Button("Setup check") {
+            setup.pinned = true; Task { await setup.run() }
+        }
         Button("Settings…") { SettingsWindowController.shared.show(model: model) }
         Divider()
         Button("Quit Notchivity") { NSApp.terminate(nil) }

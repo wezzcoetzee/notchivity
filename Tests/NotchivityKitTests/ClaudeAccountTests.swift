@@ -1,9 +1,12 @@
 import Foundation
 import Testing
+
 @testable import NotchivityKit
 
-private func config(_ directory: String, isDefault: Bool = false,
-                    id: String? = "uuid-1", email: String? = "wesley@idexx.com") -> ClaudeAccountDiscovery.Config {
+private func config(
+    _ directory: String, isDefault: Bool = false,
+    id: String? = "uuid-1", email: String? = "wesley@idexx.com"
+) -> ClaudeAccountDiscovery.Config {
     var oauth: [String: Any] = [:]
     if let id { oauth["accountUuid"] = id }
     if let email { oauth["emailAddress"] = email }
@@ -13,13 +16,15 @@ private func config(_ directory: String, isDefault: Bool = false,
 
 @Suite struct ClaudeAccountTests {
     @Test func defaultDirectoryUsesBareKeychainService() {
-        #expect(ClaudeAccount.keychainService(forConfigDirectory: "/Users/w/.claude", isDefault: true)
+        #expect(
+            ClaudeAccount.keychainService(forConfigDirectory: "/Users/w/.claude", isDefault: true)
                 == "Claude Code-credentials")
     }
 
     @Test func customDirectoryAppendsSHA256PrefixOfItsPath() {
         // Observed on a real machine: this is the item Claude Code created for that directory.
-        #expect(ClaudeAccount.keychainService(forConfigDirectory: "/Users/wcoetzee/.claude-account2", isDefault: false)
+        #expect(
+            ClaudeAccount.keychainService(forConfigDirectory: "/Users/wcoetzee/.claude-account2", isDefault: false)
                 == "Claude Code-credentials-af4ff2ea")
     }
 

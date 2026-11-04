@@ -53,15 +53,21 @@ final class SetupModel: ObservableObject {
             case .authorized, .provisional:
                 checks.append(SetupCheck(id: "notifications", title: "notifications allowed", status: .pass, required: false))
             case .denied:
-                checks.append(SetupCheck(id: "notifications", title: "notifications denied", status: .warn,
-                                         detail: "optional, peeks still work", required: false, fix: .openNotificationSettings))
+                checks.append(
+                    SetupCheck(
+                        id: "notifications", title: "notifications denied", status: .warn,
+                        detail: "optional, peeks still work", required: false, fix: .openNotificationSettings))
             default:
-                checks.append(SetupCheck(id: "notifications", title: "notifications not yet allowed", status: .warn,
-                                         detail: "optional, peeks still work", required: false, fix: .allowNotifications))
+                checks.append(
+                    SetupCheck(
+                        id: "notifications", title: "notifications not yet allowed", status: .warn,
+                        detail: "optional, peeks still work", required: false, fix: .allowNotifications))
             }
         } else {
-            checks.append(SetupCheck(id: "notifications", title: "notifications unavailable", status: .off,
-                                     detail: "run the .app bundle from make-app.sh", required: false))
+            checks.append(
+                SetupCheck(
+                    id: "notifications", title: "notifications unavailable", status: .off,
+                    detail: "run the .app bundle from make-app.sh", required: false))
         }
         let inApplications = Bundle.main.bundleURL.path.hasPrefix("/Applications/")
         if LoginItemManager.shared.isEnabled {
@@ -69,9 +75,11 @@ final class SetupModel: ObservableObject {
         } else if inApplications {
             checks.append(SetupCheck(id: "login", title: "launch at login", status: .off, detail: "optional", required: false, fix: .enableLoginItem))
         } else {
-            checks.append(SetupCheck(id: "login", title: "launch at login", status: .off,
-                                     detail: "optional, needs the app in /Applications", required: false,
-                                     fix: Notifier.shared.available ? .moveToApplications : nil))
+            checks.append(
+                SetupCheck(
+                    id: "login", title: "launch at login", status: .off,
+                    detail: "optional, needs the app in /Applications", required: false,
+                    fix: Notifier.shared.available ? .moveToApplications : nil))
         }
         return checks
     }

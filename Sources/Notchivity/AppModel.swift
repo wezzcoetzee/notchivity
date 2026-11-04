@@ -96,7 +96,10 @@ final class AppModel: ObservableObject {
     func usageWarning(_ account: AccountUsage) -> String? {
         guard let failure = account.failure else { return nil }
         if failure == .http(429), let lastGood = lastGoodUsageAt,
-           Date().timeIntervalSince(lastGood) < settings.usageInterval * 2 { return nil }
+            Date().timeIntervalSince(lastGood) < settings.usageInterval * 2
+        {
+            return nil
+        }
         return failure.description
     }
 
@@ -194,8 +197,9 @@ final class AppModel: ObservableObject {
 
     /// Screenshot aid for `NOTCHIVITY_STATE=peek`.
     func showSamplePeek() {
-        peek = Event(kind: .ready, headline: "vello-pet-owner-profile#666 is ready to merge",
-                     detail: "approved · CI ✓", tone: .good)
+        peek = Event(
+            kind: .ready, headline: "vello-pet-owner-profile#666 is ready to merge",
+            detail: "approved · CI ✓", tone: .good)
     }
 
     /// Fills the model with fixed sample data for `--screenshots`, bypassing every fetch.

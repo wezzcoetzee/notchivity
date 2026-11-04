@@ -1,12 +1,16 @@
 import Foundation
 import Testing
+
 @testable import NotchivityKit
 
-private func pr(number: Int = 1, ci: CIState = .success, conflicts: Bool = false, threads: Int = 0, approvals: Int = 0,
-                changesRequested: Bool = false, draft: Bool = false, human: Bool = false) -> PullRequest {
-    PullRequest(repo: "org/repo", number: number, title: "t", url: URL(string: "https://x/\(number)")!, branch: "b",
-                draft: draft, updatedAt: .now, ci: ci, conflicts: conflicts, unresolvedThreads: threads,
-                approvals: approvals, changesRequested: changesRequested, reviewedByHuman: human || approvals > 0)
+private func pr(
+    number: Int = 1, ci: CIState = .success, conflicts: Bool = false, threads: Int = 0, approvals: Int = 0,
+    changesRequested: Bool = false, draft: Bool = false, human: Bool = false
+) -> PullRequest {
+    PullRequest(
+        repo: "org/repo", number: number, title: "t", url: URL(string: "https://x/\(number)")!, branch: "b",
+        draft: draft, updatedAt: .now, ci: ci, conflicts: conflicts, unresolvedThreads: threads,
+        approvals: approvals, changesRequested: changesRequested, reviewedByHuman: human || approvals > 0)
 }
 
 @Suite struct PullRequestTests {
@@ -24,13 +28,13 @@ private func pr(number: Int = 1, ci: CIState = .success, conflicts: Bool = false
 
     @Test func decodesGraphQLAndFiltersBotReviews() throws {
         let json = """
-        {"data":{"viewer":{"login":"me"},"search":{"nodes":[{"number":7,"title":"T","url":"https://github.com/o/r/pull/7",
-        "isDraft":false,"mergeable":"MERGEABLE","reviewDecision":null,"updatedAt":"2026-09-09T22:49:34Z","headRefName":"b",
-        "repository":{"nameWithOwner":"o/r"},"reviewThreads":{"nodes":[{"isResolved":false},{"isResolved":true}]},
-        "reviews":{"nodes":[{"state":"APPROVED","author":{"login":"copilot-pull-request-reviewer"}},{"state":"APPROVED","author":{"login":"me"}},
-        {"state":"APPROVED","author":{"login":"pat"}},{"state":"APPROVED","author":{"login":"pat"}}]},
-        "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}}]}}}
-        """
+            {"data":{"viewer":{"login":"me"},"search":{"nodes":[{"number":7,"title":"T","url":"https://github.com/o/r/pull/7",
+            "isDraft":false,"mergeable":"MERGEABLE","reviewDecision":null,"updatedAt":"2026-09-09T22:49:34Z","headRefName":"b",
+            "repository":{"nameWithOwner":"o/r"},"reviewThreads":{"nodes":[{"isResolved":false},{"isResolved":true}]},
+            "reviews":{"nodes":[{"state":"APPROVED","author":{"login":"copilot-pull-request-reviewer"}},{"state":"APPROVED","author":{"login":"me"}},
+            {"state":"APPROVED","author":{"login":"pat"}},{"state":"APPROVED","author":{"login":"pat"}}]},
+            "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}}]}}}
+            """
         let (me, prs) = try PullRequest.decode(Data(json.utf8))
         #expect(me == "me")
         #expect(prs.count == 1)
@@ -63,10 +67,14 @@ private func pr(number: Int = 1, ci: CIState = .success, conflicts: Bool = false
     }
 
     @Test func usageThresholdsFireOnceAndSuggestSpareAccount() {
-        let old = [AccountUsage(id: "a", label: "idexx", sessionPct: 70, weeklyPct: 40),
-                   AccountUsage(id: "b", label: "ezyvet", sessionPct: 5, weeklyPct: 5)]
-        let new = [AccountUsage(id: "a", label: "idexx", sessionPct: 92, weeklyPct: 40),
-                   AccountUsage(id: "b", label: "ezyvet", sessionPct: 5, weeklyPct: 5)]
+        let old = [
+            AccountUsage(id: "a", label: "idexx", sessionPct: 70, weeklyPct: 40),
+            AccountUsage(id: "b", label: "ezyvet", sessionPct: 5, weeklyPct: 5),
+        ]
+        let new = [
+            AccountUsage(id: "a", label: "idexx", sessionPct: 92, weeklyPct: 40),
+            AccountUsage(id: "b", label: "ezyvet", sessionPct: 5, weeklyPct: 5),
+        ]
         let events = EventDiff.usage(old: old, new: new)
         #expect(events.count == 1)
         #expect(events[0].kind == .usageThreshold)

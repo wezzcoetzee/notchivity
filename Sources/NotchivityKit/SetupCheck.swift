@@ -36,8 +36,10 @@ public struct SetupCheck: Identifiable, Equatable {
     public let required: Bool
     public let fix: Fix?
 
-    public init(id: String, title: String, status: Status, detail: String? = nil, diagnostic: String? = nil,
-                required: Bool = true, fix: Fix? = nil) {
+    public init(
+        id: String, title: String, status: Status, detail: String? = nil, diagnostic: String? = nil,
+        required: Bool = true, fix: Fix? = nil
+    ) {
         self.id = id
         self.title = title
         self.status = status
@@ -72,12 +74,18 @@ public struct SetupDoctor {
         if let usage { return usageChecks(usage) }
         let accounts = ClaudeAccountDiscovery.discover()
         guard !accounts.isEmpty else {
-            return [SetupCheck(id: "accounts", title: "no Claude sign-in found", status: .fail,
-                               detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
-                               fix: .openClaudeCode)]
+            return [
+                SetupCheck(
+                    id: "accounts", title: "no Claude sign-in found", status: .fail,
+                    detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
+                    fix: .openClaudeCode)
+            ]
         }
-        let checks = [SetupCheck(id: "accounts", title: plural(accounts.count, "Claude account") + " found",
-                                 status: .pass, detail: accounts.map(\.label).joined(separator: ", "))]
+        let checks = [
+            SetupCheck(
+                id: "accounts", title: plural(accounts.count, "Claude account") + " found",
+                status: .pass, detail: accounts.map(\.label).joined(separator: ", "))
+        ]
         let fetcher = UsageFetcher()
         var readings: [AccountUsage] = []
         for account in accounts {
@@ -104,32 +112,42 @@ public struct SetupDoctor {
 
     private func optionalUsageChecks(_ readings: [AccountUsage]) -> [SetupCheck] {
         return readings.map { reading in
-            SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.provider.name)",
-                       status: reading.failure == nil ? .pass : .warn,
-                       detail: reading.failure?.description ?? usageDetail(reading), required: false)
+            SetupCheck(
+                id: "usage.\(reading.id)", title: "usage for \(reading.provider.name)",
+                status: reading.failure == nil ? .pass : .warn,
+                detail: reading.failure?.description ?? usageDetail(reading), required: false)
         }
     }
 
     func usageChecks(_ readings: [AccountUsage], includeCount: Bool = true) -> [SetupCheck] {
         guard !readings.isEmpty else {
-            return [SetupCheck(id: "accounts", title: "no Claude sign-in found", status: .fail,
-                               detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
-                               fix: .openClaudeCode)]
+            return [
+                SetupCheck(
+                    id: "accounts", title: "no Claude sign-in found", status: .fail,
+                    detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
+                    fix: .openClaudeCode)
+            ]
         }
         var checks: [SetupCheck] = []
         if includeCount {
-            checks.append(SetupCheck(id: "accounts", title: plural(readings.count, "Claude account") + " found",
-                                     status: .pass, detail: readings.map(\.displayLabel).joined(separator: ", ")))
+            checks.append(
+                SetupCheck(
+                    id: "accounts", title: plural(readings.count, "Claude account") + " found",
+                    status: .pass, detail: readings.map(\.displayLabel).joined(separator: ", ")))
         }
         for reading in readings {
             if let failure = reading.failure {
                 // A 429 clears on its own; it should not hold the checklist open.
-                checks.append(SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)",
-                                         status: failure == .http(429) ? .warn : .fail,
-                                         detail: failure.description, fix: failure.fix))
+                checks.append(
+                    SetupCheck(
+                        id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)",
+                        status: failure == .http(429) ? .warn : .fail,
+                        detail: failure.description, fix: failure.fix))
             } else {
-                checks.append(SetupCheck(id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)", status: .pass,
-                                         detail: usageDetail(reading)))
+                checks.append(
+                    SetupCheck(
+                        id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)", status: .pass,
+                        detail: usageDetail(reading)))
             }
         }
         return checks
@@ -154,8 +172,11 @@ public struct SetupDoctor {
             if (try? await Shell.run(gh, ["auth", "status"])) == nil {
                 return [SetupCheck(id: "gh", title: "GitHub CLI not signed in", status: .fail, fix: .copy("gh auth login"))]
             }
-            return [SetupCheck(id: "gh", title: "PR query failed", status: .fail,
-                               detail: Shell.summary(error, fallback: "pr fetch failed"), diagnostic: "\(error)", fix: .retry)]
+            return [
+                SetupCheck(
+                    id: "gh", title: "PR query failed", status: .fail,
+                    detail: Shell.summary(error, fallback: "pr fetch failed"), diagnostic: "\(error)", fix: .retry)
+            ]
         }
     }
 

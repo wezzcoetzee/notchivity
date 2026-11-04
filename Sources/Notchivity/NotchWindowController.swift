@@ -127,8 +127,10 @@ final class NotchWindowController {
             centerX = screen.frame.midX
         }
         let size = Self.windowSize
-        panel.setFrame(NSRect(x: centerX - size.width / 2, y: screen.frame.maxY - size.height,
-                              width: size.width, height: size.height), display: true)
+        panel.setFrame(
+            NSRect(
+                x: centerX - size.width / 2, y: screen.frame.maxY - size.height,
+                width: size.width, height: size.height), display: true)
     }
 
     private func hoverChanged(_ inside: Bool) {

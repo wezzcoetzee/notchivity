@@ -12,7 +12,8 @@ public struct Config: Codable {
 
     public static func load() -> Config {
         guard let data = try? Data(contentsOf: file),
-              let config = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+            let config = try? JSONDecoder().decode(Config.self, from: data)
+        else { return Config() }
         return config
     }
 

@@ -32,7 +32,8 @@ public struct ClaudeAccount: Equatable {
     /// TLD (`wesley@idexx.com` → `idexx`), falling back to the config directory's name.
     public static func label(forEmail email: String?, fallback: String) -> String {
         guard let domain = email?.split(separator: "@").last,
-              let name = domain.split(separator: ".").first else { return fallback }
+            let name = domain.split(separator: ".").first
+        else { return fallback }
         return String(name)
     }
 }
@@ -58,16 +59,21 @@ public enum ClaudeAccountDiscovery {
     /// directory keeps its config file inside itself.
     public static func discover(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [ClaudeAccount] {
         let fileManager = FileManager.default
-        var configs = [Config(directory: home.appendingPathComponent(defaultDirectoryName).path,
-                              isDefault: true,
-                              json: try? Data(contentsOf: home.appendingPathComponent(configFileName)))]
+        var configs = [
+            Config(
+                directory: home.appendingPathComponent(defaultDirectoryName).path,
+                isDefault: true,
+                json: try? Data(contentsOf: home.appendingPathComponent(configFileName)))
+        ]
         let siblings = ((try? fileManager.contentsOfDirectory(at: home, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
             .filter { $0.lastPathComponent.hasPrefix(defaultDirectoryName + "-") }
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
         for directory in siblings {
-            configs.append(Config(directory: directory.path, isDefault: false,
-                                  json: try? Data(contentsOf: directory.appendingPathComponent(configFileName))))
+            configs.append(
+                Config(
+                    directory: directory.path, isDefault: false,
+                    json: try? Data(contentsOf: directory.appendingPathComponent(configFileName))))
         }
         return accounts(from: configs)
     }
@@ -81,14 +87,16 @@ public enum ClaudeAccountDiscovery {
 
     static func account(from config: Config) -> ClaudeAccount? {
         guard let json = config.json,
-              let root = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any],
-              let oauth = root["oauthAccount"] as? [String: Any],
-              let id = oauth["accountUuid"] as? String else { return nil }
+            let root = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any],
+            let oauth = root["oauthAccount"] as? [String: Any],
+            let id = oauth["accountUuid"] as? String
+        else { return nil }
         let fallback = URL(fileURLWithPath: config.directory).lastPathComponent
         return ClaudeAccount(
             id: id,
             label: ClaudeAccount.label(forEmail: oauth["emailAddress"] as? String, fallback: fallback),
-            keychainService: ClaudeAccount.keychainService(forConfigDirectory: config.directory,
-                                                           isDefault: config.isDefault))
+            keychainService: ClaudeAccount.keychainService(
+                forConfigDirectory: config.directory,
+                isDefault: config.isDefault))
     }
 }

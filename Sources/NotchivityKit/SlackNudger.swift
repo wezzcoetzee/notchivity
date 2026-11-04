@@ -33,7 +33,7 @@ public struct SlackNudger {
     /// One line per PR so the message stays scannable; links are labelled with the short ref.
     public static func batchMessage(_ prs: [PullRequest]) -> String {
         ([":eyes: \(plural(prs.count, "PR")) waiting for review please:"]
-         + prs.map { "• <\($0.url.absoluteString)|\($0.shortRef)> \($0.title)" }).joined(separator: "\n")
+            + prs.map { "• <\($0.url.absoluteString)|\($0.shortRef)> \($0.title)" }).joined(separator: "\n")
     }
 
     func post(_ text: String, channel: String, thread: String?) async throws -> String {
@@ -63,13 +63,13 @@ public struct SlackNudger {
     func postViaClaude(_ text: String, channel: String, thread: String?) async throws -> String {
         let hint = thread.map { " Post it as a threaded reply to the message with timestamp \($0) (pass that as thread_ts to the tool)." } ?? ""
         let prompt = """
-        Send EXACTLY this message to Slack channel \(channel) using your Slack send-message tool.\(hint) Do not edit or add anything.
+            Send EXACTLY this message to Slack channel \(channel) using your Slack send-message tool.\(hint) Do not edit or add anything.
 
-        \(text)
+            \(text)
 
-        After the tool returns, reply with a single line "SLACK_OK <ts>" using the message timestamp the tool returned. \
-        If you cannot send it, reply "SLACK_FAIL <reason>" and nothing else. Never reply SLACK_OK unless the tool actually returned a timestamp.
-        """
+            After the tool returns, reply with a single line "SLACK_OK <ts>" using the message timestamp the tool returned. \
+            If you cannot send it, reply "SLACK_FAIL <reason>" and nothing else. Never reply SLACK_OK unless the tool actually returned a timestamp.
+            """
         let data = try await Shell.run(Shell.which("claude"), ["-p", prompt, "--max-turns", "6"], timeout: 120)
         let out = String(decoding: data, as: UTF8.self)
         if let match = out.firstMatch(of: #/SLACK_OK\s+(\S+)/#) { return String(match.1) }

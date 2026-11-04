@@ -1,19 +1,24 @@
 import Foundation
 import Testing
+
 @testable import NotchivityKit
 
-private func billingLine(timestamp: String = "2026-10-20T10:00:00.123Z",
-                         period: String = "USAGE_PERIOD_TYPE_WEEKLY",
-                         percentage: Double = 64,
-                         end: String = "2099-10-27T10:00:00Z") throws -> Data {
+private func billingLine(
+    timestamp: String = "2026-10-20T10:00:00.123Z",
+    period: String = "USAGE_PERIOD_TYPE_WEEKLY",
+    percentage: Double = 64,
+    end: String = "2099-10-27T10:00:00Z"
+) throws -> Data {
     try JSONSerialization.data(withJSONObject: [
         "ts": timestamp, "src": "shell", "lvl": "info",
         "msg": "billing: fetched credits config",
-        "ctx": ["config": [
-            "creditUsagePercent": percentage,
-            "currentPeriod": ["type": period, "end": end],
-            "onDemandUsed": ["val": 500],
-        ]],
+        "ctx": [
+            "config": [
+                "creditUsagePercent": percentage,
+                "currentPeriod": ["type": period, "end": end],
+                "onDemandUsed": ["val": 500],
+            ]
+        ],
     ])
 }
 
@@ -33,7 +38,9 @@ private func billingLine(timestamp: String = "2026-10-20T10:00:00.123Z",
     }
 
     @Test func parsesLegacyMonthlyCreditsAndClampsPercentages() throws {
-        let legacy = Data(#"{"ts":"2026-10-20T10:00:00Z","msg":"billing: fetched credits config","ctx":{"config":{"monthlyLimit":{"val":10000},"used":{"val":2500},"billingPeriodEnd":"2099-11-01T00:00:00Z"}}}"#.utf8)
+        let legacy = Data(
+            #"{"ts":"2026-10-20T10:00:00Z","msg":"billing: fetched credits config","ctx":{"config":{"monthlyLimit":{"val":10000},"used":{"val":2500},"billingPeriodEnd":"2099-11-01T00:00:00Z"}}}"#
+                .utf8)
         #expect(GrokReading.parse(legacy)?.accountUsage.monthlyPct == 25)
         #expect(GrokReading.parse(try billingLine(percentage: 150))?.percentage == 100)
         #expect(GrokReading.parse(try billingLine(percentage: -5))?.percentage == 0)
@@ -45,9 +52,13 @@ private func billingLine(timestamp: String = "2026-10-20T10:00:00.123Z",
         #expect(GrokReading.parse(try billingLine(timestamp: "invalid")) == nil)
         #expect(GrokReading.parse(try billingLine(period: "USAGE_PERIOD_TYPE_DAILY")) == nil)
         #expect(GrokReading.parse(try billingLine(end: "invalid")) == nil)
-        let missing = Data(#"{"ts":"2026-10-20T10:00:00Z","msg":"billing: fetched credits config","ctx":{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2099-11-01T00:00:00Z"}}}}"#.utf8)
+        let missing = Data(
+            #"{"ts":"2026-10-20T10:00:00Z","msg":"billing: fetched credits config","ctx":{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2099-11-01T00:00:00Z"}}}}"#
+                .utf8)
         #expect(GrokReading.parse(missing) == nil)
-        let conflicting = Data(#"{"ts":"2026-10-20T10:00:00Z","msg":"billing: fetched credits config","ctx":{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY"},"monthlyLimit":{"val":100},"used":{"val":50},"billingPeriodEnd":"2099-11-01T00:00:00Z"}}}"#.utf8)
+        let conflicting = Data(
+            #"{"ts":"2026-10-20T10:00:00Z","msg":"billing: fetched credits config","ctx":{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY"},"monthlyLimit":{"val":100},"used":{"val":50},"billingPeriodEnd":"2099-11-01T00:00:00Z"}}}"#
+                .utf8)
         #expect(GrokReading.parse(conflicting) == nil)
     }
 

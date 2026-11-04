@@ -32,9 +32,11 @@ public struct PullRequest: Codable, Equatable, Identifiable {
     /// True once someone other than a bot or the author has reviewed.
     public var reviewedByHuman: Bool
 
-    public init(repo: String, number: Int, title: String, url: URL, branch: String, draft: Bool = false,
-                updatedAt: Date, ci: CIState, conflicts: Bool = false, unresolvedThreads: Int = 0,
-                approvals: Int = 0, changesRequested: Bool = false, reviewedByHuman: Bool = false) {
+    public init(
+        repo: String, number: Int, title: String, url: URL, branch: String, draft: Bool = false,
+        updatedAt: Date, ci: CIState, conflicts: Bool = false, unresolvedThreads: Int = 0,
+        approvals: Int = 0, changesRequested: Bool = false, reviewedByHuman: Bool = false
+    ) {
         self.repo = repo
         self.number = number
         self.title = title
@@ -84,21 +86,21 @@ public func plural(_ n: Int, _ word: String) -> String { "\(n) \(word)\(n == 1 ?
 
 extension PullRequest {
     public static let query = """
-    query($q: String!) {
-      viewer { login }
-      search(query: $q, type: ISSUE, first: 100) {
-        nodes {
-          ... on PullRequest {
-            number title url isDraft mergeable reviewDecision updatedAt headRefName
-            repository { nameWithOwner }
-            reviewThreads(first: 100) { nodes { isResolved } }
-            reviews(last: 50) { nodes { state author { login } } }
-            commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+        query($q: String!) {
+          viewer { login }
+          search(query: $q, type: ISSUE, first: 100) {
+            nodes {
+              ... on PullRequest {
+                number title url isDraft mergeable reviewDecision updatedAt headRefName
+                repository { nameWithOwner }
+                reviewThreads(first: 100) { nodes { isResolved } }
+                reviews(last: 50) { nodes { state author { login } } }
+                commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+              }
+            }
           }
         }
-      }
-    }
-    """
+        """
 
     struct Response: Decodable {
         struct Body: Decodable {
@@ -157,13 +159,14 @@ extension PullRequest {
         case "PENDING", "EXPECTED": ci = .pending
         default: ci = .none
         }
-        self.init(repo: raw.repository.nameWithOwner, number: raw.number, title: raw.title, url: raw.url,
-                  branch: raw.headRefName, draft: raw.isDraft, updatedAt: raw.updatedAt, ci: ci,
-                  conflicts: raw.mergeable == "CONFLICTING",
-                  unresolvedThreads: raw.reviewThreads.nodes.filter { !$0.isResolved }.count,
-                  approvals: Set(humans.filter { $0.state == "APPROVED" }.compactMap { $0.author?.login }).count,
-                  changesRequested: raw.reviewDecision == "CHANGES_REQUESTED",
-                  reviewedByHuman: !humans.isEmpty)
+        self.init(
+            repo: raw.repository.nameWithOwner, number: raw.number, title: raw.title, url: raw.url,
+            branch: raw.headRefName, draft: raw.isDraft, updatedAt: raw.updatedAt, ci: ci,
+            conflicts: raw.mergeable == "CONFLICTING",
+            unresolvedThreads: raw.reviewThreads.nodes.filter { !$0.isResolved }.count,
+            approvals: Set(humans.filter { $0.state == "APPROVED" }.compactMap { $0.author?.login }).count,
+            changesRequested: raw.reviewDecision == "CHANGES_REQUESTED",
+            reviewedByHuman: !humans.isEmpty)
     }
 
     /// Decodes a `gh api graphql` response body.

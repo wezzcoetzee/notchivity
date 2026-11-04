@@ -24,11 +24,13 @@ public struct AccountUsage: Codable, Equatable, Identifiable {
     /// The name to show for this account anywhere a human reads it.
     public var displayLabel: String { customLabel ?? label }
 
-    public init(id: String, label: String, provider: UsageProvider = .claude,
-                sessionPct: Double? = nil, weeklyPct: Double? = nil,
-                sessionResetsAt: Double? = nil, weeklyResetsAt: Double? = nil,
-                failure: UsageError? = nil, observedAt: Double? = nil,
-                monthlyPct: Double? = nil, monthlyResetsAt: Double? = nil) {
+    public init(
+        id: String, label: String, provider: UsageProvider = .claude,
+        sessionPct: Double? = nil, weeklyPct: Double? = nil,
+        sessionResetsAt: Double? = nil, weeklyResetsAt: Double? = nil,
+        failure: UsageError? = nil, observedAt: Double? = nil,
+        monthlyPct: Double? = nil, monthlyResetsAt: Double? = nil
+    ) {
         self.id = id
         self.label = label
         self.provider = provider
@@ -83,10 +85,11 @@ public struct AccountUsage: Codable, Equatable, Identifiable {
     public static func parse(_ json: [String: Any], id: String, label: String) -> AccountUsage {
         let five = json["five_hour"] as? [String: Any]
         let seven = json["seven_day"] as? [String: Any]
-        return AccountUsage(id: id, label: label,
-                            sessionPct: UsageParsing.percentage(five?["utilization"]),
-                            weeklyPct: UsageParsing.percentage(seven?["utilization"]),
-                            sessionResetsAt: UsageParsing.epochSeconds(five?["resets_at"]),
-                            weeklyResetsAt: UsageParsing.epochSeconds(seven?["resets_at"]))
+        return AccountUsage(
+            id: id, label: label,
+            sessionPct: UsageParsing.percentage(five?["utilization"]),
+            weeklyPct: UsageParsing.percentage(seven?["utilization"]),
+            sessionResetsAt: UsageParsing.epochSeconds(five?["resets_at"]),
+            weeklyResetsAt: UsageParsing.epochSeconds(seven?["resets_at"]))
     }
 }
