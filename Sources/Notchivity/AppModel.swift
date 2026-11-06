@@ -24,13 +24,13 @@ final class AppModel: ObservableObject {
     static let rateLimitRetry: TimeInterval = 30
 
     let setup = SetupModel()
-    /// Claude first, so the collapsed underline and `primary` stay on a Claude account.
-    private let usageSources: [any UsageSource] = [UsageFetcher(), CodexUsageSource(), GrokUsageSource()]
+    private let usageReader = UsageReader()
     private let prFetcher = PRFetcher()
     private let settings = Settings.shared
     private var peekQueue: [Event] = []
     private var peekTask: Task<Void, Never>?
     private var prRefresh: Task<Void, Never>?
+    private var usageRefresh: Task<Void, Never>?
     private var lastPRAttemptAt: Date?
     private var consecutivePRFailures = 0
 
@@ -107,9 +107,27 @@ final class AppModel: ObservableObject {
     private var rateLimitRetryScheduled = false
 
     func refreshUsage() async {
+        if let inflight = usageRefresh { return await inflight.value }
+        let task = Task {
+            await fetchUsage()
+            usageRefresh = nil
+        }
+        usageRefresh = task
+        await task.value
+    }
+
+    func usageConfigurationChanged() async {
+        if let inflight = usageRefresh { await inflight.value }
+        accounts = []
+        lastUsageAt = nil
+        lastGoodUsageAt = nil
+        await refreshUsage()
+        await setup.run()
+    }
+
+    private func fetchUsage() async {
         let previous = accounts
-        var fresh: [AccountUsage] = []
-        for source in usageSources { fresh += await source.fetch(previous: previous).map(named) }
+        let fresh = await usageReader.fetch(previous: previous).map(named)
         if !previous.isEmpty { dispatch(EventDiff.usage(old: previous, new: fresh, thresholds: settings.thresholds)) }
         accounts = fresh
         lastUsageAt = Date()

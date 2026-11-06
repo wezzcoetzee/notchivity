@@ -1,10 +1,15 @@
 import Foundation
 
-/// Optional settings that live outside UserDefaults because they hold a secret.
+/// Connection settings in JSON. The CLI proxy token lives separately in Keychain.
 /// `~/.config/notchivity/config.json`: `{ "slackChannel": "C…", "slackBotToken": "xoxb-…" }`.
 public struct Config: Codable {
     public var slackChannel: String?
     public var slackBotToken: String?
+    public var cliProxyURL: String?
+
+    public var usesCLIProxy: Bool {
+        !(cliProxyURL ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     public static let directory = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/notchivity", isDirectory: true)

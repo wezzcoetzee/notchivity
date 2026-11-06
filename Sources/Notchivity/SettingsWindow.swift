@@ -37,6 +37,8 @@ struct SettingsView: View {
     /// Transient "Saved" or "save failed" in place of the Save link.
     @State private var slackSaveStatus: String?
     @State private var newThreshold = ""
+    @State private var proxyURL = Config.load().cliProxyURL ?? ""
+    @State private var showingProxyConnection = false
 
     static let width: CGFloat = 560
 
@@ -64,6 +66,12 @@ struct SettingsView: View {
         .foregroundStyle(.white)
         .font(.bodyStrong)
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingProxyConnection) {
+            CLIProxyConnectionView { savedURL in
+                proxyURL = savedURL
+                Task { await model.usageConfigurationChanged() }
+            }
+        }
     }
 
     private var tabs: some View {
@@ -176,7 +184,13 @@ struct SettingsView: View {
             HStack {
                 Spacer()
                 link(slackSaveStatus ?? "Save") {
-                    do { try slack.save(); slackSaveStatus = "Saved" } catch { slackSaveStatus = "save failed" }
+                    do {
+                        var config = Config.load()
+                        config.slackChannel = slack.slackChannel
+                        config.slackBotToken = slack.slackBotToken
+                        try config.save()
+                        slackSaveStatus = "Saved"
+                    } catch { slackSaveStatus = "save failed" }
                     Task {
                         try? await Task.sleep(for: .seconds(2)); slackSaveStatus = nil
                     }
@@ -215,6 +229,9 @@ struct SettingsView: View {
 
     private var usage: some View {
         VStack(alignment: .leading, spacing: 0) {
+            row("Quota source", detail: proxyURL.isEmpty ? "Local account discovery" : "CLI proxy · \(URL(string: proxyURL)?.host ?? proxyURL)") {
+                link("Configure…") { showingProxyConnection = true }
+            }
             segmented(
                 "Account for the tab underline", $settings.underlineAccount,
                 options: [("", "first")] + model.accounts.map { ($0.id, $0.displayLabel) })
