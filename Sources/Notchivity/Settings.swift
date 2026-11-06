@@ -1,8 +1,8 @@
 import Foundation
 import NotchivityKit
 
-/// Every user preference, persisted in UserDefaults. Slack lives in `Config` because it
-/// holds a secret; launch at login lives in `LoginItemManager` because macOS owns it.
+/// User preferences persisted in UserDefaults. Connection settings live in `Config`;
+/// launch at login lives in `LoginItemManager` because macOS owns it.
 @MainActor
 final class Settings: ObservableObject {
     static let shared = Settings()

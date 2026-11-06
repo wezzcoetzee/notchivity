@@ -62,12 +62,34 @@ public struct SetupDoctor {
     /// `usage` and `prs` are the app's most recent readings when it has them, so the checklist
     /// does not add a second poller against either API. The CLI passes nil and fetches.
     public func run(usage: [AccountUsage]? = nil, prs: PRResult? = nil, extra: [SetupCheck] = []) async -> [SetupCheck] {
+        async let quotas = quotaChecks(usage: usage, config: .load())
+        async let github = githubChecks(prs: prs)
+        let results = await (quotas, github)
+        return results.0 + results.1 + extra + [slack()]
+    }
+
+    func quotaChecks(usage: [AccountUsage]?, config: Config) async -> [SetupCheck] {
+        if config.usesCLIProxy {
+            let readings = if let usage { usage } else { await UsageReader().fetch(previous: [], config: config) }
+            return proxyChecks(readings)
+        }
         async let claude = claudeChecks(usage: usage?.filter { $0.provider == .claude })
         async let codex = codexChecks(usage: usage?.filter { $0.provider == .codex })
         async let grok = grokChecks(usage: usage?.filter { $0.provider == .grok })
-        async let github = githubChecks(prs: prs)
-        let results = await (claude, codex, grok, github)
-        return results.0 + results.1 + results.2 + results.3 + extra + [slack()]
+        let results = await (claude, codex, grok)
+        return results.0 + results.1 + results.2
+    }
+
+    func proxyChecks(_ readings: [AccountUsage]) -> [SetupCheck] {
+        guard !readings.isEmpty else {
+            return [SetupCheck(id: "cliproxy", title: "CLI proxy connected", status: .warn, detail: "no supported accounts returned")]
+        }
+        return readings.map { reading in
+            SetupCheck(
+                id: "usage.\(reading.id)", title: "CLI proxy: \(reading.displayLabel)",
+                status: reading.failure == nil ? .pass : (reading.id.hasSuffix(":connection") ? .fail : .warn),
+                detail: reading.failure?.description ?? usageDetail(reading), fix: reading.failure == nil ? nil : .retry)
+        }
     }
 
     func claudeChecks(usage: [AccountUsage]?) async -> [SetupCheck] {

@@ -26,11 +26,19 @@ The gear in the expanded header, Cmd-, or the right-click menu opens a standard 
 |---|---|
 | General | Launch at login (needs the app in /Applications), Slack channel and bot token, run setup check, version |
 | PRs | Category order (drag), overflow mode (view all or scroll), rows before overflow, hide drafts, show age |
-| Usage | Account for the tab's underline, poll interval, notification thresholds |
+| Usage | Quota source (local discovery or CLI proxy), account names, account for the tab's underline, poll interval, notification thresholds |
 | Notifications | Peek on or off, peek duration, per-event Notification Center toggles |
 | Displays | Show on external displays (a black tab at the top centre of notch-less screens), what the tab shows (usage on or off, PR indicator as counts, dots or nothing), hover delay |
 
-Slack settings are written to `~/.config/notchivity/config.json`; everything else lives in UserDefaults.
+Slack settings and the CLI proxy URL are written to `~/.config/notchivity/config.json`. The CLI proxy token is stored in macOS Keychain; other preferences live in UserDefaults.
+
+### CLI proxy
+
+In Settings › Usage › Quota source › Configure, enter your [CLI proxy](https://github.com/WebDotNext/cliproxy) base URL and its read-only `USAGE_LIMITS_TOKEN`. The proxy must include [usage-limits support](https://github.com/WebDotNext/cliproxy/pull/10), have management enabled, and permit remote management when Notchivity runs on another machine. Set `USAGE_LIMITS_TOKEN` in the proxy process environment and restart the proxy to enable the scoped token.
+
+When a URL is configured, Notchivity reads `GET /v8/management/usage-limits` instead of discovering local Claude, Codex, or Grok accounts. It shows each supported account separately, maps the proxy's `xai` provider to Grok Build, and preserves unknown percentages and reset times. The proxy omits account names; use the Names rows in Usage to give accounts friendly labels. The regular poll interval still applies, so the first read can show a pending account until the proxy's background refresh completes.
+
+Failed requests retain the last readings with an error; pending and stale observations stay marked until refreshed. Passed reset times do not invent zero usage. An empty successful response removes old accounts. Clearing the URL and saving restores local discovery and removes the stored proxy token. A configured but unreachable or invalid proxy never falls back to local discovery. Setup check and `--doctor` use the selected source too.
 
 ## Setup check
 
@@ -98,7 +106,7 @@ The bundle is ad-hoc signed. On another Mac the first launch needs right-click �
 swift test
 ```
 
-Covers account discovery, Codex and Grok usage parsing, snapshot freshness and expiry, setup diagnostics, PR categorisation and GraphQL decoding, and the event diff.
+Covers account discovery, Codex and Grok usage parsing, CLI proxy requests and quota normalization, snapshot freshness and expiry, setup diagnostics, PR categorisation and GraphQL decoding, and the event diff.
 
 ## Formatting
 

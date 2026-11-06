@@ -60,7 +60,8 @@ public struct AccountUsage: Codable, Equatable, Identifiable {
         if provider == .grok {
             return monthlyResetsAt != nil || monthlyPct != nil ? [.monthly] : [.weekly]
         }
-        return [.session, .weekly]
+        let available: [Window] = [.session, .weekly].filter { pct($0) != nil || resetsAt($0) != nil }
+        return available.isEmpty ? [.session, .weekly] : available
     }
 
     public var primaryPct: Double? { windows.first.flatMap(pct) }
