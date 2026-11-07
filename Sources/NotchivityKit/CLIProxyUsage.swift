@@ -18,7 +18,7 @@ public struct CLIProxyUsageSource {
             let host = components.host, !host.isEmpty,
             components.user == nil, components.password == nil, components.query == nil, components.fragment == nil,
             let url = components.url
-        else { throw UsageError.other("Enter an HTTP or HTTPS CLI proxy base URL without credentials, query, or fragment") }
+        else { throw UsageError.other("enter an HTTP or HTTPS CLI proxy base URL without credentials, query, or fragment") }
         return url.appendingPathComponent("v8/management/usage-limits")
     }
 
@@ -26,12 +26,12 @@ public struct CLIProxyUsageSource {
         do {
             let endpoint = try Self.endpoint(for: baseURL)
             let secret = try token().trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !secret.isEmpty else { throw UsageError.other("Set the CLI proxy read-only token in Settings") }
+            guard !secret.isEmpty else { throw UsageError.other("set the CLI proxy read-only token in Settings") }
             var request = URLRequest(url: endpoint, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
             request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             let (data, response) = try await session.data(for: request, delegate: NoRedirects())
-            guard let response = response as? HTTPURLResponse else { throw UsageError.other("Unreadable CLI proxy response") }
+            guard let response = response as? HTTPURLResponse else { throw UsageError.other("unreadable CLI proxy response") }
             guard response.statusCode == 200 else {
                 throw UsageError.other("CLI proxy HTTP \(response.statusCode)")
             }
@@ -59,7 +59,7 @@ public struct CLIProxyUsageSource {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let response: Response
-        do { response = try decoder.decode(Response.self, from: data) } catch { throw UsageError.other("Unreadable CLI proxy response") }
+        do { response = try decoder.decode(Response.self, from: data) } catch { throw UsageError.other("unreadable CLI proxy response") }
         var seen: Set<String> = []
         return try response.accounts.compactMap { account in
             let provider: UsageProvider
@@ -71,21 +71,21 @@ public struct CLIProxyUsageSource {
             }
             guard account.status != "unsupported" else { return nil }
             let id = accountPrefix + provider.rawValue + ":" + account.authIndex
-            guard !account.authIndex.isEmpty, seen.insert(id).inserted else { throw UsageError.other("Unreadable CLI proxy accounts") }
+            guard !account.authIndex.isEmpty, seen.insert(id).inserted else { throw UsageError.other("unreadable CLI proxy accounts") }
             var reading = AccountUsage(id: id, label: "\(provider.name) \(account.authIndex.prefix(8))", provider: provider)
             if account.windows.isEmpty, account.status != "ok", let cached = previous.first(where: { $0.id == id }) {
                 reading = cached
             }
             if let observed = account.observedAt {
-                guard let timestamp = UsageParsing.epochSeconds(observed) else { throw UsageError.other("Unreadable CLI proxy timestamp") }
+                guard let timestamp = UsageParsing.epochSeconds(observed) else { throw UsageError.other("unreadable CLI proxy timestamp") }
                 reading.observedAt = timestamp
             }
             for window in account.windows {
                 guard window.usedPercent.isFinite, (0...100).contains(window.usedPercent) else {
-                    throw UsageError.other("Unreadable CLI proxy percentage")
+                    throw UsageError.other("unreadable CLI proxy percentage")
                 }
                 let reset = window.resetsAt.flatMap { UsageParsing.epochSeconds($0) }
-                if window.resetsAt != nil, reset == nil { throw UsageError.other("Unreadable CLI proxy reset time") }
+                if window.resetsAt != nil, reset == nil { throw UsageError.other("unreadable CLI proxy reset time") }
                 switch window.id {
                 case "session": reading.sessionPct = window.usedPercent; reading.sessionResetsAt = reset
                 case "weekly": reading.weeklyPct = window.usedPercent; reading.weeklyResetsAt = reset

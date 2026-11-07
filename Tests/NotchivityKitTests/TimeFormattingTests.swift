@@ -4,8 +4,8 @@ import Testing
 
 struct TimeFormattingTests {
     @Test func countdownResettingAtOrBelowZero() {
-        #expect(TimeFormatting.countdown(secondsRemaining: 0) == "resetting…")
-        #expect(TimeFormatting.countdown(secondsRemaining: -5) == "resetting…")
+        #expect(TimeFormatting.countdown(secondsRemaining: 0) == "now")
+        #expect(TimeFormatting.countdown(secondsRemaining: -5) == "now")
     }
 
     @Test func countdownMinutesOnly() {

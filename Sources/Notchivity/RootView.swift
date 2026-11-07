@@ -32,7 +32,7 @@ struct RootView: View {
     @ViewBuilder private var content: some View {
         switch geometry.state {
         case .collapsed: CollapsedView(model: model, geometry: geometry, setup: setup)
-        case .peek: PeekView(event: model.peek, geometry: geometry)
+        case .peek: PeekView(event: model.peek, geometry: geometry, dismiss: geometry.onPeekTap)
         case .expanded where setup.visible: SetupView(setup: setup, geometry: geometry)
         case .expanded: ExpandedView(model: model, geometry: geometry)
         }
@@ -41,9 +41,9 @@ struct RootView: View {
     private var radius: CGFloat { geometry.state == .collapsed ? 12 : 22 }
 
     @ViewBuilder private var menu: some View {
-        Button("Refresh now") { model.refreshAll() }
-        if model.peek != nil { Button("Dismiss peek") { model.dismissPeek() } }
-        Button("Setup check") {
+        Button("Refresh Now") { model.refreshAll() }
+        if model.peek != nil { Button("Dismiss Peek") { model.dismissPeek() } }
+        Button("Setup Check") {
             setup.pinned = true; Task { await setup.run() }
         }
         Button("Settings…") { SettingsWindowController.shared.show(model: model) }
@@ -61,6 +61,8 @@ struct CollapsedView: View {
     @ObservedObject var geometry: NotchGeometry
     @ObservedObject var setup: SetupModel
     @ObservedObject private var settings = Settings.shared
+    /// Overrides the Displays setting; only the screenshot gallery passes one.
+    var indicator: Settings.Indicator?
 
     private static let setupLineHeight: CGFloat = 18
     /// Required checks still failing on first run. Silent once setup has passed, so a later
@@ -80,13 +82,21 @@ struct CollapsedView: View {
             } else if geometry.isFake {
                 HStack(spacing: 10) {
                     if settings.collapsedUsage {
-                        let pct = model.underlineAccount?.primaryPct
-                        if let pct { Text("\(Int(pct))%").foregroundStyle(Color.usage(pct)) }
-                        Bar(pct: pct, height: 2)
+                        let account = model.underlineAccount
+                        let pct = account.flatMap { account in account.windows.first.flatMap { model.displayPct(account, $0) } }
+                        // A reading that failed to refresh or is old greys out rather than posing as live.
+                        let failing = account.map(model.isOld) ?? false
+                        if let pct {
+                            Text("\(Int(pct))%").foregroundStyle(Color.usage(pct, old: failing)).accessibilityHidden(true)
+                        } else if account != nil {
+                            Text("?").foregroundStyle(Color.dim).accessibilityHidden(true)
+                        }
+                        Bar(pct: pct, height: 2, old: failing)
+                            .accessibilityLabel("\(model.underlineAccount?.displayLabel ?? "usage") \(pct.map { "\(Int($0)) percent" } ?? "unknown")")
                     } else {
                         Spacer(minLength: 0)
                     }
-                    indicator
+                    prIndicator
                 }
                 .font(.detail)
                 .padding(.horizontal, 14)
@@ -95,26 +105,36 @@ struct CollapsedView: View {
         .frame(width: geometry.notchWidth, height: geometry.notchHeight + (setupLine ? Self.setupLineHeight : 0))
     }
 
-    @ViewBuilder private var indicator: some View {
+    @ViewBuilder private var prIndicator: some View {
         let failing = model.count(.failing), action = model.count(.needsAction)
         if outstanding > 0 {
             setupLabel.fixedSize()
         } else if model.prError != nil {
             Dot(color: .warn, size: 5)
         } else {
-            switch settings.indicator {
-            case .counts:
-                HStack(spacing: 6) {
-                    if failing > 0 { Text("\(failing)").foregroundStyle(Color.bad) }
-                    if action > 0 { Text("\(action)").foregroundStyle(Color.warn) }
-                    if model.prs.isEmpty, model.lastPRsAt != nil { Dot(color: .good, size: 5) }
+            let mode = indicator ?? settings.indicator
+            if mode != .none, model.orderedPRs.isEmpty, model.lastPRsAt != nil {
+                // "Nothing open, all fetched" reads the same in either mode.
+                Dot(color: .good, size: 5).accessibilityElement(children: .ignore).accessibilityLabel("no open PRs")
+            } else {
+                switch mode {
+                case .counts:
+                    HStack(spacing: 6) {
+                        if failing > 0 { Text("\(failing)").foregroundStyle(Color.bad) }
+                        if action > 0 { Text("\(action)").foregroundStyle(Color.warn) }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(failing) failing, \(action) need action")
+                    .accessibilityHidden(failing + action == 0)
+                case .dots:
+                    HStack(spacing: 3) {
+                        ForEach(model.orderedPRs.prefix(8)) { Dot(color: .tone(for: $0.category), size: 5) }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(PRCategory.allCases.map { "\(model.count($0)) \($0.title.lowercased())" }.joined(separator: ", "))
+                case .none:
+                    EmptyView()
                 }
-            case .dots:
-                HStack(spacing: 3) {
-                    ForEach(model.orderedPRs.prefix(8)) { Dot(color: .tone(for: $0.category), size: 5) }
-                }
-            case .none:
-                EmptyView()
             }
         }
     }
@@ -124,6 +144,7 @@ struct CollapsedView: View {
 struct PeekView: View {
     let event: Event?
     @ObservedObject var geometry: NotchGeometry
+    var dismiss: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -141,6 +162,11 @@ struct PeekView: View {
         .padding(.bottom, 12)
         .frame(width: 440)
         .contentShape(Rectangle())
-        .onTapGesture { if let url = event?.url { NSWorkspace.shared.open(url) } }
+        .onTapGesture {
+            if let url = event?.url { NSWorkspace.shared.open(url) }
+            dismiss()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(event?.url == nil ? [] : .isButton)
     }
 }

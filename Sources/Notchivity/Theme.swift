@@ -12,7 +12,7 @@ extension Color {
     static let stroke = Color(white: 0.2)
     static let track = Color(white: 0.13)
     static let rule = Color(white: 0.09)
-    static let hover = Color(white: 0.06)
+    static let hover = Color(white: 0.08)
 
     init(_ tone: Tone) {
         switch tone {
@@ -33,9 +33,10 @@ extension Color {
         }
     }
 
-    /// White under 75%, amber to 90%, red above.
-    static func usage(_ pct: Double) -> Color {
-        pct >= 90 ? .bad : pct >= 75 ? .warn : .white
+    /// White under 75%, amber to 90%, red above. An `old` reading (failed to refresh, or long
+    /// ago) is grey unless it is red, which matters at any age.
+    static func usage(_ pct: Double, old: Bool = false) -> Color {
+        pct >= 90 ? .bad : old ? .dim : pct >= 75 ? .warn : .white
     }
 }
 
@@ -58,17 +59,20 @@ extension Font {
 struct Bar: View {
     let pct: Double?
     var height: CGFloat = 5
+    /// Greys the fill like the percentage beside it when the reading is in doubt; red stays red.
+    var old = false
 
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.track)
                 if let pct {
-                    Capsule().fill(Color.usage(pct)).frame(width: max(height, proxy.size.width * CGFloat(min(pct, 100) / 100)))
+                    Capsule().fill(Color.usage(pct, old: old)).frame(width: max(height, proxy.size.width * CGFloat(min(pct, 100) / 100)))
                 }
             }
         }
         .frame(height: height)
+        .accessibilityElement(children: .ignore)
     }
 }
 

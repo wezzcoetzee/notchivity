@@ -11,22 +11,12 @@ struct CLIProxyConnectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("CLI proxy").font(.headline)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Base URL")
-                TextField("https://proxy.example.com", text: $url)
-                    .textFieldStyle(.plain).padding(8)
-                    .overlay(Rectangle().stroke(Color.stroke))
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Read-only token")
-                SecureField("USAGE_LIMITS_TOKEN", text: $token)
-                    .textFieldStyle(.plain).padding(8)
-                    .overlay(Rectangle().stroke(Color.stroke))
-            }
-            Text("Stored in Keychain. Clear the URL for local discovery.")
+            Text("CLI proxy").font(.bodyStrong)
+            labelled("Base URL") { TextField("https://proxy.example.com", text: $url) }
+            labelled("Read-only token") { SecureField("USAGE_LIMITS_TOKEN", text: $token) }
+            Text("the token is stored in Keychain, clear the URL to go back to local discovery")
                 .font(.detail).foregroundStyle(Color.dim)
-            if let error { Text(error).font(.detail).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+            if let error { Text(error).font(.detail).foregroundStyle(Color.warn).fixedSize(horizontal: false, vertical: true) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -35,6 +25,7 @@ struct CLIProxyConnectionView: View {
         }
         .padding(20)
         .frame(width: 460)
+        .font(.bodyStrong)
         .background(.black)
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
@@ -42,7 +33,18 @@ struct CLIProxyConnectionView: View {
             do {
                 token = try CLIProxyToken.load()
                 tokenLoaded = true
-            } catch { self.error = (error as? UsageError)?.description ?? "Could not read the CLI proxy token" }
+            } catch { self.error = (error as? UsageError)?.description ?? "could not read the CLI proxy token" }
+        }
+    }
+
+    /// The Settings field style: Body text in a 5pt Stroke Grey outline.
+    private func labelled(_ title: String, @ViewBuilder field: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+            field()
+                .textFieldStyle(.plain).font(.body).padding(8)
+                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.stroke))
+                .accessibilityLabel(title)
         }
     }
 
@@ -52,9 +54,9 @@ struct CLIProxyConnectionView: View {
         do {
             if !trimmedURL.isEmpty {
                 _ = try CLIProxyUsageSource.endpoint(for: trimmedURL)
-                guard !trimmedToken.isEmpty else { throw UsageError.other("Enter the proxy's read-only USAGE_LIMITS_TOKEN") }
+                guard !trimmedToken.isEmpty else { throw UsageError.other("enter the proxy's read-only USAGE_LIMITS_TOKEN") }
             }
-            var config = Config.load()
+            var config = try Config.loadForUpdate()
             config.cliProxyURL = trimmedURL.isEmpty ? nil : trimmedURL
             let previousToken = try CLIProxyToken.load()
             try CLIProxyToken.save(trimmedURL.isEmpty ? "" : trimmedToken)
@@ -64,6 +66,6 @@ struct CLIProxyConnectionView: View {
             }
             onSaved(trimmedURL)
             dismiss()
-        } catch { self.error = (error as? UsageError)?.description ?? "Could not save the CLI proxy connection" }
+        } catch { self.error = (error as? UsageError)?.description ?? "could not save the CLI proxy connection" }
     }
 }

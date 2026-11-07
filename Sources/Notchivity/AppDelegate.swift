@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Only exists so Cmd-, Cmd-Q and the standard edit shortcuts (paste, undo…) work
+    /// Only exists so Cmd-, Cmd-Q, Cmd-W and the standard edit shortcuts (paste, undo…) work
     /// while the Settings window is key. Accessory apps get no menu bar otherwise.
     private func installMainMenu() {
         let menu = NSMenu()
@@ -40,6 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ]
         for (title, action, key) in items { edit.submenu?.addItem(withTitle: title, action: action, keyEquivalent: key) }
         menu.addItem(edit)
+
+        let window = NSMenuItem()
+        window.submenu = NSMenu(title: "Window")
+        window.submenu?.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        menu.addItem(window)
         NSApp.mainMenu = menu
     }
 

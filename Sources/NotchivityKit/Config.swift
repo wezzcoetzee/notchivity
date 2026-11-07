@@ -22,6 +22,13 @@ public struct Config: Codable {
         return config
     }
 
+    /// For read-modify-write: a missing file is an empty config, but one that exists and does not
+    /// decode throws, so saving never silently drops the settings it holds.
+    public static func loadForUpdate() throws -> Config {
+        guard FileManager.default.fileExists(atPath: file.path) else { return Config() }
+        return try JSONDecoder().decode(Config.self, from: Data(contentsOf: file))
+    }
+
     public var slackConfigured: Bool { !(slackChannel ?? "").isEmpty }
 
     public func save() throws {

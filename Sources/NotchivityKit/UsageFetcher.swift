@@ -6,15 +6,51 @@ import Foundation
 public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
     case keychain
     case http(Int)
+    case unreachable
+
+    /// The one mapping from a thrown error, shared by the poller and `--doctor`.
+    public init(_ error: Error) {
+        if let usage = error as? UsageError {
+            self = usage
+        } else {
+            self = error is URLError ? .unreachable : .other("usage fetch failed")
+        }
+    }
     case unreadable
     case other(String)
 
     public var description: String {
         switch self {
-        case .keychain: return "Keychain item not readable, click Always Allow in the macOS prompt"
+        case .keychain: return "keychain item not readable, click Always Allow in the macOS prompt"
         case .http(401): return "token expired, open Claude Code to refresh it"
         case .http(429): return "rate limited, is another usage poller running?"
         case .http(let status): return "usage endpoint HTTP \(status)"
+        case .unreachable: return "usage endpoint unreachable"
+        case .unreadable: return "unreadable usage response"
+        case .other(let message): return message
+        }
+    }
+
+    /// Failures that clear on their own or by a fix elsewhere (an expired token refreshed by
+    /// Claude Code, the network coming back), so a quick retry can pick up the recovery.
+    /// Not a rate limit, and not the keychain, whose retry would raise the macOS prompt again.
+    public var isTransient: Bool {
+        switch self {
+        case .http(401), .unreachable: return true
+        case .http(let status): return status >= 500
+        default: return false
+        }
+    }
+
+    /// A few words for the notch's narrow usage column; `description` is the full sentence for
+    /// setup, `--doctor` and the tooltip.
+    public var short: String {
+        switch self {
+        case .keychain: return "keychain not readable"
+        case .http(401): return "token expired"
+        case .http(429): return "rate limited"
+        case .http(let status): return "usage endpoint HTTP \(status)"
+        case .unreachable: return "unreachable"
         case .unreadable: return "unreadable usage response"
         case .other(let message): return message
         }
@@ -24,7 +60,9 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
     public var fix: SetupCheck.Fix? {
         switch self {
         case .keychain: return .retry
-        case .http(401): return .openClaudeCode
+        case .http(401): return .openClaudeCode()
+        case .unreachable: return .retry
+        case .http(let status) where status >= 500: return .retry
         default: return nil
         }
     }
@@ -46,7 +84,8 @@ public struct UsageFetcher: UsageSource {
                 results.append(try await usage(for: account))
             } catch {
                 var stale = previous.first { $0.id == account.id } ?? AccountUsage(id: account.id, label: account.label)
-                stale.failure = error as? UsageError ?? .other("\(error)")
+                stale.failure = UsageError(error)
+                stale.configDirectory = account.configDirectory
                 results.append(stale)
             }
         }
@@ -64,7 +103,9 @@ public struct UsageFetcher: UsageSource {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else { throw UsageError.http(status) }
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw UsageError.unreadable }
-        return AccountUsage.parse(json, id: account.id, label: account.label)
+        var usage = AccountUsage.parse(json, id: account.id, label: account.label)
+        usage.configDirectory = account.configDirectory
+        return usage
     }
 
     func accessToken(service: String) async throws -> String {

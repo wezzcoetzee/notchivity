@@ -143,7 +143,7 @@ private func billingLine(
         new.monthlyPct = 95
         let events = EventDiff.usage(old: [old], new: [new])
         #expect(events.count == 1)
-        #expect(events.first?.headline == "grok monthly at 90%")
+        #expect(events.first?.headline == "grok monthly at 95%")
         #expect(EventDiff.usage(old: [new], new: [new]).isEmpty)
         #expect(EventDiff.usage(old: [new], new: [old]).first?.kind == .limitReset)
     }

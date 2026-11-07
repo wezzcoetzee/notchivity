@@ -86,4 +86,16 @@ public struct SlackNudger {
         try? FileManager.default.createDirectory(at: Config.directory, withIntermediateDirectories: true)
         try? JSONEncoder().encode(threads).write(to: threadsFile, options: .atomic)
     }
+
+    /// A short reason for the notch when an ask fails, from the Slack API error code or the
+    /// `claude -p` fallback's reply.
+    public static func failureSummary(_ error: Error) -> String {
+        let text = "\(error)".lowercased()
+        if text.contains("slackchannel") { return "set a Slack channel in Settings" }
+        if text.contains("channel_not_found") { return "Slack channel not found" }
+        if text.contains("not_in_channel") { return "Slack bot not in channel" }
+        if text.contains("invalid_auth") || text.contains("not_authed") || text.contains("token_revoked") { return "Slack token rejected" }
+        if text.contains("timed out") || text.contains("timeout") { return "Slack post timed out" }
+        return "Slack post failed, check the channel and token in Settings"
+    }
 }
