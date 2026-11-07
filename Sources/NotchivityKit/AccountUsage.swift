@@ -18,6 +18,14 @@ public struct AccountUsage: Codable, Equatable, Identifiable {
     public var observedAt: Double?
     /// A name the user typed in Settings, replacing the one discovered from the sign-in.
     public var customLabel: String?
+    /// The Claude sign-in's `CLAUDE_CONFIG_DIR`, so a fix opens Claude Code on the right account.
+    public var configDirectory: String?
+
+    /// The setup fix for this account's failure, aimed at this account's sign-in.
+    public var fix: SetupCheck.Fix? {
+        guard case .openClaudeCode = failure?.fix else { return failure?.fix }
+        return .openClaudeCode(configDirectory: configDirectory)
+    }
 
     public var error: String? { failure?.description }
 

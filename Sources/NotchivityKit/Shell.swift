@@ -51,10 +51,19 @@ public enum Shell {
         return name
     }
 
-    /// One lowercase line for the notch. Raw stderr and URLError text stay in logs and `--doctor`.
+    public static let offline = "GitHub unreachable"
+    public static let signedOut = "GitHub CLI not signed in"
+
+    /// One short line for the notch. Raw stderr and URLError text stay in logs and `--doctor`.
     public static func summary(_ error: Error, fallback: String) -> String {
-        if let shell = error as? ShellError, shell.description.localizedCaseInsensitiveContains("auth") { return "gh not signed in" }
-        if error is URLError { return "github unreachable" }
+        if let shell = error as? ShellError {
+            let text = shell.description.lowercased()
+            if text.contains("saml") { return "authorize SSO for gh" }
+            if text.contains("gh auth login") || text.contains("not logged in") { return signedOut }
+            let offlineHints = ["error connecting to", "no such host", "dial tcp", "could not resolve", "network is unreachable"]
+            if offlineHints.contains(where: text.contains) { return offline }
+        }
+        if error is URLError { return offline }
         return fallback
     }
 }

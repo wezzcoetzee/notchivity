@@ -15,9 +15,11 @@ if CommandLine.arguments.contains("--doctor") {
     exit(checks.contains(where: \.blocking) ? 1 : 0)
 }
 
-if let index = CommandLine.arguments.firstIndex(of: "--screenshots") {
-    let dir = CommandLine.arguments.dropFirst(index + 1).first ?? "screenshots/raw"
-    MainActor.assumeIsolated { Screenshots.render(to: URL(fileURLWithPath: dir)) }
+if let index = CommandLine.arguments.firstIndex(where: { $0 == "--screenshots" || $0 == "--gallery" }) {
+    let gallery = CommandLine.arguments[index] == "--gallery"
+    let dir = URL(fileURLWithPath: CommandLine.arguments.dropFirst(index + 1).first ?? (gallery ? "screenshots/gallery" : "screenshots/raw"))
+    _ = NSApplication.shared
+    MainActor.assumeIsolated { gallery ? Screenshots.gallery(to: dir) : Screenshots.render(to: dir) }
     exit(0)
 }
 

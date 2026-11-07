@@ -13,7 +13,7 @@ import Testing
         #expect(checks.map(\.status) == [.pass, .pass, .fail, .fail, .warn])
         #expect(checks[1].detail == "session 13% · week 63%")
         #expect(checks[2].fix == .retry)
-        #expect(checks[3].fix == .openClaudeCode)
+        #expect(checks[3].fix == .openClaudeCode())
         #expect(checks.filter(\.blocking).count == 2)
     }
 
@@ -21,7 +21,7 @@ import Testing
         let checks = SetupDoctor().usageChecks([])
         #expect(checks.count == 1)
         #expect(checks[0].blocking)
-        #expect(checks[0].fix == .openClaudeCode)
+        #expect(checks[0].fix == .openClaudeCode())
     }
 
     @Test func reportCountsProblems() {
@@ -43,8 +43,8 @@ import Testing
         ]
         let checks = await doctor.grokChecks(usage: readings)
         #expect(checks.map(\.status) == [.pass, .pass, .warn])
-        #expect(checks[0].detail == "week 64%")
-        #expect(checks[1].detail == "month 25%")
+        #expect(checks[0].detail == "optional · week 64%")
+        #expect(checks[1].detail == "optional · month 25%")
         #expect(checks.allSatisfy { !$0.required && !$0.blocking })
     }
 }

@@ -59,26 +59,34 @@ public enum EventDiff {
         for pr in new {
             guard let was = before[pr.id] else { continue }
             if pr.ci == .failure && was.ci != .failure {
-                events.append(.init(kind: .ciFailed, headline: "CI failed on \(pr.shortRef)", detail: pr.title, tone: .bad, url: pr.url))
+                events.append(.init(kind: .ciFailed, headline: "\(pr.shortRef) CI failed", detail: pr.title, tone: .bad, url: pr.url))
             }
             if pr.conflicts && !was.conflicts {
-                events.append(.init(kind: .conflicts, headline: "\(pr.shortRef) has conflicts", detail: pr.title, tone: .bad, url: pr.url))
+                events.append(.init(kind: .conflicts, headline: "\(pr.shortRef) conflicts", detail: pr.title, tone: .bad, url: pr.url))
             }
             if pr.changesRequested && !was.changesRequested {
-                events.append(.init(kind: .changesRequested, headline: "changes requested on \(pr.shortRef)", detail: pr.title, tone: .warn, url: pr.url))
+                events.append(.init(kind: .changesRequested, headline: "\(pr.shortRef) changes requested", detail: pr.title, tone: .warn, url: pr.url))
             }
             if pr.unresolvedThreads > was.unresolvedThreads {
                 let n = pr.unresolvedThreads - was.unresolvedThreads
-                events.append(.init(kind: .newThreads, headline: "\(plural(n, "new comment")) on \(pr.shortRef)", detail: pr.title, tone: .warn, url: pr.url))
+                events.append(.init(kind: .newThreads, headline: "\(pr.shortRef) \(plural(n, "new comment"))", detail: pr.title, tone: .warn, url: pr.url))
             }
             if pr.approvals > 0 && was.approvals == 0 {
                 events.append(.init(kind: .approved, headline: "\(pr.shortRef) approved", detail: pr.title, tone: .good, url: pr.url))
             }
             if pr.category == .ready && was.category != .ready {
-                events.append(.init(kind: .ready, headline: "\(pr.shortRef) is ready to merge", detail: pr.title, tone: .good, url: pr.url))
+                events.append(.init(kind: .ready, headline: "\(pr.shortRef) ready to merge", detail: pr.title, tone: .good, url: pr.url))
             }
         }
         return events
+    }
+
+    /// One peek standing in for a burst: the most urgent event leads, the rest are counted.
+    public static func summary(_ events: [Event]) -> Event {
+        let ranked = events.sorted { $0.tone.severity > $1.tone.severity }
+        let worst = ranked[0]
+        let detail = ["+\(ranked.count - 1) more"] + ranked.dropFirst().prefix(1).map(\.headline)
+        return Event(kind: worst.kind, headline: worst.headline, detail: detail.joined(separator: " · "), tone: worst.tone, url: worst.url)
     }
 
     /// PRs present before and gone now. The caller decides merged vs closed.
@@ -98,8 +106,14 @@ public enum EventDiff {
             guard let was = before[account.id], was.error == nil else { continue }
             for window in AccountUsage.Window.allCases {
                 guard let now = account.pct(window), let then = was.pct(window) else { continue }
-                let spare = new.first { $0.id != account.id && ($0.pct(window) ?? 100) < 50 }
                 if let crossed = thresholds.sorted().last(where: { then < $0 && now >= $0 }) {
+                    // Near the limit, name another account of the same provider that has room.
+                    let spare =
+                        crossed < 90
+                        ? nil
+                        : new.first {
+                            $0.id != account.id && $0.provider == account.provider && $0.failure == nil && ($0.pct(window) ?? 100) < 50
+                        }
                     let reset = account.resetsAt(window).map { TimeFormatting.countdown(secondsRemaining: Int($0 - Date().timeIntervalSince1970)) }
                     var detail = [reset.map { "resets \($0)" }, spare.map { "\($0.displayLabel) has \(100 - Int($0.pct(window) ?? 0))% free" }]
                         .compactMap { $0 }.joined(separator: " · ")
@@ -107,7 +121,7 @@ public enum EventDiff {
                     events.append(
                         .init(
                             kind: .usageThreshold,
-                            headline: "\(account.displayLabel) \(window.rawValue) at \(Int(crossed))%",
+                            headline: "\(account.displayLabel) \(window.rawValue) at \(Int(now))%",
                             detail: detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim))
                 }
                 if then >= 20 && now < then - 15 {

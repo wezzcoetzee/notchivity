@@ -12,11 +12,14 @@ public struct ClaudeAccount: Equatable {
     public let id: String
     public let label: String
     public let keychainService: String
+    /// The `CLAUDE_CONFIG_DIR` for a non-default sign-in; nil for `~/.claude`.
+    public let configDirectory: String?
 
-    public init(id: String, label: String, keychainService: String) {
+    public init(id: String, label: String, keychainService: String, configDirectory: String? = nil) {
         self.id = id
         self.label = label
         self.keychainService = keychainService
+        self.configDirectory = configDirectory
     }
 
     public static let keychainServicePrefix = "Claude Code-credentials"
@@ -97,6 +100,7 @@ public enum ClaudeAccountDiscovery {
             label: ClaudeAccount.label(forEmail: oauth["emailAddress"] as? String, fallback: fallback),
             keychainService: ClaudeAccount.keychainService(
                 forConfigDirectory: config.directory,
-                isDefault: config.isDefault))
+                isDefault: config.isDefault),
+            configDirectory: config.isDefault ? nil : config.directory)
     }
 }

@@ -180,7 +180,7 @@ private let proxyPayload = #"""
 
     @Test func missingOrUnreadableTokenDoesNotMakeRequest() async {
         let missing = CLIProxyUsageSource(baseURL: "https://proxy.example.com", token: { "" })
-        #expect(await missing.fetch(previous: []).first?.error == "Set the CLI proxy read-only token in Settings")
+        #expect(await missing.fetch(previous: []).first?.error == "set the CLI proxy read-only token in Settings")
         let unreadable = CLIProxyUsageSource(baseURL: "https://proxy.example.com", token: { throw UsageError.other("Keychain locked") })
         #expect(await unreadable.fetch(previous: []).first?.error == "Keychain locked")
     }

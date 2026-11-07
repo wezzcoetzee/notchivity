@@ -20,10 +20,17 @@ private func pr(
         #expect(pr(threads: 1, approvals: 1).category == .needsAction)
         #expect(pr(changesRequested: true).category == .needsAction)
         #expect(pr(approvals: 1).category == .ready)
-        #expect(pr(ci: .pending, approvals: 1).category == .needsAction)
+        #expect(pr(ci: .pending, approvals: 1).category == .awaitingReview)
         #expect(pr(approvals: 1, draft: true).category == .needsAction)
         #expect(pr(human: true).category == .needsAction)
         #expect(pr().category == .awaitingReview)
+    }
+
+    @Test func amberRowsLeadWithAnAmberReason() {
+        #expect(pr(approvals: 1, draft: true).flags.first?.text == "draft")
+        #expect(pr(approvals: 1, draft: true).flags.first?.tone == .warn)
+        #expect(pr(human: true).flags.first?.text == "reviewed")
+        #expect(pr(threads: 2).flags.first?.text == "2 comments")
     }
 
     @Test func decodesGraphQLAndFiltersBotReviews() throws {
@@ -59,6 +66,15 @@ private func pr(
         #expect(kinds == [.ciFailed, .newThreads, .approved, .ready])
     }
 
+    @Test func burstSummaryTakesTheWorstTone() {
+        let old = [pr(number: 1), pr(number: 2, threads: 1), pr(number: 3, human: true)]
+        let new = [pr(number: 1, ci: .failure), pr(number: 2, threads: 3), pr(number: 3, approvals: 1)]
+        let summary = EventDiff.summary(EventDiff.prs(old: old, new: new))
+        #expect(summary.headline == "repo#1 CI failed")
+        #expect(summary.tone == .bad)
+        #expect(summary.detail == "+3 more · repo#2 2 new comments")
+    }
+
     @Test func unchangedAndNewPRsAreQuiet() {
         let old = [pr(number: 1, ci: .failure)]
         let new = [pr(number: 1, ci: .failure), pr(number: 9, ci: .failure)]
@@ -78,7 +94,7 @@ private func pr(
         let events = EventDiff.usage(old: old, new: new)
         #expect(events.count == 1)
         #expect(events[0].kind == .usageThreshold)
-        #expect(events[0].headline == "idexx session at 90%")
+        #expect(events[0].headline == "idexx session at 92%")
         #expect(events[0].detail?.contains("ezyvet has 95% free") == true)
         #expect(EventDiff.usage(old: new, new: new).isEmpty)
     }

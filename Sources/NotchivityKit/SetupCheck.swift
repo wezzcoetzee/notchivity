@@ -4,12 +4,13 @@ import Foundation
 public struct SetupCheck: Identifiable, Equatable {
     public enum Status: Equatable { case pass, fail, warn, off }
     public enum Fix: Equatable {
-        case openClaudeCode
+        /// Opens Terminal running `claude`, under `CLAUDE_CONFIG_DIR` when the sign-in is not the default.
+        case openClaudeCode(configDirectory: String? = nil)
         case retry
         case copy(String)
         case allowNotifications
         case openNotificationSettings
-        case createSlackConfig
+        case openSlackSettings
         case enableLoginItem
         case moveToApplications
 
@@ -19,8 +20,8 @@ public struct SetupCheck: Identifiable, Equatable {
             case .retry: return "retry"
             case .copy(let command): return "copy \(command)"
             case .allowNotifications: return "allow"
-            case .openNotificationSettings: return "System Settings"
-            case .createSlackConfig: return "create config"
+            case .openNotificationSettings: return "open System Settings"
+            case .openSlackSettings: return "open Settings"
             case .enableLoginItem: return "enable"
             case .moveToApplications: return "move to /Applications"
             }
@@ -35,10 +36,13 @@ public struct SetupCheck: Identifiable, Equatable {
     public let diagnostic: String?
     public let required: Bool
     public let fix: Fix?
+    /// A warning that hides the real result (offline, a server outage): it never blocks, but
+    /// first-run setup does not count as passed until it clears.
+    public let inconclusive: Bool
 
     public init(
         id: String, title: String, status: Status, detail: String? = nil, diagnostic: String? = nil,
-        required: Bool = true, fix: Fix? = nil
+        required: Bool = true, fix: Fix? = nil, inconclusive: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -47,6 +51,7 @@ public struct SetupCheck: Identifiable, Equatable {
         self.diagnostic = diagnostic
         self.required = required
         self.fix = fix
+        self.inconclusive = inconclusive
     }
 
     public var blocking: Bool { required && status == .fail }
@@ -100,7 +105,7 @@ public struct SetupDoctor {
                 SetupCheck(
                     id: "accounts", title: "no Claude sign-in found", status: .fail,
                     detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
-                    fix: .openClaudeCode)
+                    fix: .openClaudeCode())
             ]
         }
         let checks = [
@@ -114,7 +119,9 @@ public struct SetupDoctor {
             do {
                 readings.append(try await fetcher.usage(for: account))
             } catch {
-                readings.append(AccountUsage(id: account.id, label: account.label, failure: error as? UsageError ?? .other("\(error)")))
+                var failed = AccountUsage(id: account.id, label: account.label, failure: UsageError(error))
+                failed.configDirectory = account.configDirectory
+                readings.append(failed)
             }
         }
         return checks + usageChecks(readings, includeCount: false)
@@ -137,7 +144,7 @@ public struct SetupDoctor {
             SetupCheck(
                 id: "usage.\(reading.id)", title: "usage for \(reading.provider.name)",
                 status: reading.failure == nil ? .pass : .warn,
-                detail: reading.failure?.description ?? usageDetail(reading), required: false)
+                detail: "optional · " + (reading.failure?.description ?? usageDetail(reading)), required: false)
         }
     }
 
@@ -147,7 +154,7 @@ public struct SetupDoctor {
                 SetupCheck(
                     id: "accounts", title: "no Claude sign-in found", status: .fail,
                     detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
-                    fix: .openClaudeCode)
+                    fix: .openClaudeCode())
             ]
         }
         var checks: [SetupCheck] = []
@@ -159,12 +166,17 @@ public struct SetupDoctor {
         }
         for reading in readings {
             if let failure = reading.failure {
-                // A 429 clears on its own; it should not hold the checklist open.
+                // A 429, the network or a server outage clears on its own; it should not hold the
+                // checklist open. An expired token (also transient) needs the user, so it fails.
+                let passing = failure == .http(429) || (failure.isTransient && failure != .http(401))
                 checks.append(
                     SetupCheck(
                         id: "usage.\(reading.id)", title: "usage for \(reading.displayLabel)",
-                        status: failure == .http(429) ? .warn : .fail,
-                        detail: failure.description, fix: failure.fix))
+                        status: passing ? .warn : .fail,
+                        // Beside "open Claude Code" the short reason is enough; anything else keeps the
+                        // full sentence, which for the keychain is the guidance ("click Always Allow…").
+                        detail: failure == .http(401) ? failure.short : failure.description, fix: reading.fix,
+                        inconclusive: passing && failure != .http(429)))
             } else {
                 checks.append(
                     SetupCheck(
@@ -189,15 +201,24 @@ public struct SetupDoctor {
         }
         do {
             let fetched = if let prs { try prs.get() } else { try await PRFetcher().fetch() }
-            return [SetupCheck(id: "gh", title: "GitHub CLI signed in as \(fetched.me)", status: .pass, detail: "\(fetched.prs.count) open PRs")]
+            return [SetupCheck(id: "gh", title: "GitHub CLI signed in as \(fetched.me)", status: .pass, detail: plural(fetched.prs.count, "open PR"))]
         } catch {
+            // Offline (launch at login before Wi-Fi) is not a sign-in problem, and `gh auth status`
+            // would fail too and say it is.
+            if Shell.summary(error, fallback: "") == Shell.offline {
+                return [
+                    SetupCheck(
+                        id: "gh", title: Shell.offline, status: .warn, detail: "PRs load once the network is back", fix: .retry,
+                        inconclusive: true)
+                ]
+            }
             if (try? await Shell.run(gh, ["auth", "status"])) == nil {
-                return [SetupCheck(id: "gh", title: "GitHub CLI not signed in", status: .fail, fix: .copy("gh auth login"))]
+                return [SetupCheck(id: "gh", title: Shell.signedOut, status: .fail, fix: .copy("gh auth login"))]
             }
             return [
                 SetupCheck(
                     id: "gh", title: "PR query failed", status: .fail,
-                    detail: Shell.summary(error, fallback: "pr fetch failed"), diagnostic: "\(error)", fix: .retry)
+                    detail: Shell.summary(error, fallback: "PR fetch failed"), diagnostic: "\(error)", fix: .retry)
             ]
         }
     }
@@ -205,17 +226,7 @@ public struct SetupDoctor {
     func slack() -> SetupCheck {
         Config.load().slackConfigured
             ? SetupCheck(id: "slack", title: "Slack review nudges configured", status: .pass, required: false)
-            : SetupCheck(id: "slack", title: "Slack review nudges", status: .off, detail: "optional", required: false, fix: .createSlackConfig)
-    }
-
-    /// Writes a config template if none exists and returns its path.
-    public static func createSlackConfigTemplate() -> URL {
-        if !FileManager.default.fileExists(atPath: Config.file.path) {
-            try? FileManager.default.createDirectory(at: Config.directory, withIntermediateDirectories: true)
-            let template = #"{ "slackChannel": "C0123456789", "slackBotToken": "" }"#
-            try? Data((template + "\n").utf8).write(to: Config.file)
-        }
-        return Config.file
+            : SetupCheck(id: "slack", title: "Slack review nudges", status: .off, detail: "optional", required: false, fix: .openSlackSettings)
     }
 
     /// Plain-text report for `--doctor`.

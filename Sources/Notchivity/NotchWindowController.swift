@@ -17,6 +17,8 @@ final class NotchGeometry: ObservableObject {
     @Published var isFake = false
     /// Called by the views when the pointer enters or leaves the black shape.
     var onHover: (Bool) -> Void = { _ in }
+    /// Called when a peek is clicked, after it has opened its URL.
+    var onPeekTap: () -> Void = {}
 
     static let fallbackWidth: CGFloat = 200
 }
@@ -71,6 +73,8 @@ final class NotchWindowController {
     private var hoverTask: Task<Void, Never>?
 
     static let hoverOutDelay: Duration = .milliseconds(250)
+    /// Hovering a peek waits this long before expanding, so a click on the peek lands first.
+    static let peekHoverDelay = 600
     static let windowSize = NSSize(width: ExpandedView.width + 40, height: 900)
 
     var screenFrame: NSRect { screen.frame }
@@ -90,6 +94,11 @@ final class NotchWindowController {
         panel.contentView = NotchHostingView(rootView: RootView(model: model, geometry: geometry))
 
         geometry.onHover = { [weak self] inside in self?.hoverChanged(inside) }
+        // The click that opened a peek also started a hover; it should not then expand the panel.
+        geometry.onPeekTap = { [weak self] in
+            self?.hoverTask?.cancel()
+            self?.model.dismissPeek()
+        }
         model.$peek.sink { [weak self] peek in self?.peekChanged(peek) }.store(in: &cancellables)
     }
 
@@ -136,32 +145,39 @@ final class NotchWindowController {
     private func hoverChanged(_ inside: Bool) {
         guard Self.forcedState == nil else { return }
         hoverTask?.cancel()
-        let delay: Duration = inside ? .milliseconds(Settings.shared.hoverDelayMs) : Self.hoverOutDelay
+        let inDelay = geometry.state == .peek ? max(Settings.shared.hoverDelayMs, Self.peekHoverDelay) : Settings.shared.hoverDelayMs
+        let delay: Duration = inside ? .milliseconds(inDelay) : Self.hoverOutDelay
         hoverTask = Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
             geometry.hovering = inside
             if inside {
+                // A peek the user hovered into has been seen; replaying it on the way out would repeat it.
+                if geometry.state == .peek { model.dismissPeek() }
                 geometry.state = .expanded
                 model.refreshIfStale()
             } else {
-                showPeekOrCollapse()
+                // A brush past the notch that never opened it must not cancel a pinned checklist.
+                if geometry.state == .expanded { model.setup.pinned = false }
+                showPeekOrCollapse(model.peek)
                 model.showAllPRs = false
                 model.selectedPRs = []
             }
         }
     }
 
+    /// `$peek` publishes in willSet, so the new value comes from the sink, not from `model.peek`.
     private func peekChanged(_ peek: Event?) {
         guard !geometry.hovering, Self.forcedState == nil else { return }
-        showPeekOrCollapse()
+        showPeekOrCollapse(peek)
     }
 
     /// A peek's clock only starts once it is actually on screen, so one that arrives
     /// mid-hover plays when the hover ends instead of expiring unseen.
-    private func showPeekOrCollapse() {
-        geometry.state = model.peek == nil ? .collapsed : .peek
-        if geometry.state == .peek { model.peekShown() }
+    private func showPeekOrCollapse(_ peek: Event?) {
+        let wasPeeking = geometry.state == .peek
+        geometry.state = peek == nil ? .collapsed : .peek
+        if peek != nil { model.peekShown(restart: !wasPeeking) }
     }
 }
 

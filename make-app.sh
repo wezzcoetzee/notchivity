@@ -68,6 +68,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
+    <key>NSAppleEventsUsageDescription</key><string>Opens Claude Code in Terminal to refresh an expired sign-in.</string>
     $ICON_KEY
 </dict>
 </plist>

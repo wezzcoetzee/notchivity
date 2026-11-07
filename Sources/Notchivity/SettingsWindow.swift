@@ -2,23 +2,27 @@ import AppKit
 import NotchivityKit
 import SwiftUI
 
-/// The Settings window. Opened from the gear in the notch, Cmd-, or the right-click menu.
+/// The Settings window. Opened from the gear in the notch or the right-click menu. (Cmd-, only
+/// works once it is open: the app is an accessory and the notch panel never activates it.)
 @MainActor
 final class SettingsWindowController {
     static let shared = SettingsWindowController()
     private var window: NSWindow?
+    private let navigation = SettingsNavigation()
 
-    func show(model: AppModel) {
+    /// `tab` jumps to a tab (the setup check's Slack fix lands on General); nil keeps the last one.
+    func show(model: AppModel, tab: SettingsView.Tab? = nil) {
+        if let tab { navigation.tab = tab }
         if window == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: 460),
+                contentRect: NSRect(x: 0, y: 0, width: SettingsView.width, height: SettingsView.height),
                 styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
             window.title = "Notchivity Settings"
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.backgroundColor = .black
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(model: model))
+            window.contentView = NSHostingView(rootView: SettingsView(model: model, navigation: navigation))
             window.center()
             self.window = window
         }
@@ -27,22 +31,42 @@ final class SettingsWindowController {
     }
 }
 
-/// House-style settings: black, a tab strip, plain rows separated by hairlines.
+/// The selected tab, outside the view so callers can open Settings on a given tab.
+@MainActor
+final class SettingsNavigation: ObservableObject {
+    @Published var tab: SettingsView.Tab
+    init(tab: SettingsView.Tab = .general) { self.tab = tab }
+}
+
+/// House-style settings: black, a tab strip, plain rows separated by hairlines. Every control
+/// but the Slack fields writes through; those save on Return, tab switch, window close or quit.
+/// There is no Save, and closing never loses an edit.
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var setup: SetupModel
     @ObservedObject private var settings = Settings.shared
     @ObservedObject private var loginItem = LoginItemManager.shared
-    @State private var tab: Tab = .general
+    @ObservedObject private var navigation: SettingsNavigation
     @State private var slack = Config.load()
-    /// Transient "Saved" or "save failed" in place of the Save link.
-    @State private var slackSaveStatus: String?
+    @State private var slackSaveFailed = false
+    /// Typed but not yet written; saved on Return, window close or quit.
+    @State private var slackDirty = false
     @State private var newThreshold = ""
     @State private var proxyURL = Config.load().cliProxyURL ?? ""
     @State private var showingProxyConnection = false
 
     static let width: CGFloat = 560
+    static let height: CGFloat = 580
 
     enum Tab: String, CaseIterable { case general = "General", prs = "PRs", usage = "Usage", notifications = "Notifications", displays = "Displays" }
+
+    init(model: AppModel, navigation: SettingsNavigation) {
+        self.model = model
+        setup = model.setup
+        self.navigation = navigation
+    }
+
+    private var tab: Tab { navigation.tab }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -61,11 +85,18 @@ struct SettingsView: View {
                 .padding(.vertical, 12)
             }
         }
-        .frame(width: Self.width, height: 460)
+        .frame(width: Self.width, height: Self.height)
         .background(Color.black)
         .foregroundStyle(.white)
         .font(.bodyStrong)
         .preferredColorScheme(.dark)
+        // At the root, not on the General tab, so they fire whichever tab is showing.
+        .onChange(of: navigation.tab) { saveSlack() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { _ in saveSlack() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in saveSlack() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            if !slackDirty { slack = Config.load() }
+        }
         .sheet(isPresented: $showingProxyConnection) {
             CLIProxyConnectionView { savedURL in
                 proxyURL = savedURL
@@ -74,11 +105,12 @@ struct SettingsView: View {
         }
     }
 
+    /// Cmd-1 to Cmd-5 switch tabs, matching macOS Settings windows.
     private var tabs: some View {
         HStack(spacing: 18) {
-            ForEach(Tab.allCases, id: \.self) { item in
+            ForEach(Array(Tab.allCases.enumerated()), id: \.element) { index, item in
                 Button {
-                    tab = item
+                    navigation.tab = item
                 } label: {
                     Text(item.rawValue)
                         .font(.body)
@@ -86,6 +118,8 @@ struct SettingsView: View {
                         .padding(.vertical, 6)
                 }
                 .buttonStyle(.plain)
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                .accessibilityAddTraits(tab == item ? .isSelected : [])
             }
             Spacer()
         }
@@ -96,46 +130,79 @@ struct SettingsView: View {
 
     // MARK: Rows
 
-    private func row<Control: View>(_ title: String, detail: String? = nil, @ViewBuilder control: () -> Control) -> some View {
+    /// A disabled row dims its title too, so switches that cannot change do not read as live.
+    /// `rule: false` for a title row whose control is the chip row below it, so one hairline closes the pair.
+    private func row<Control: View>(
+        _ title: String, detail: String? = nil, detailColor: Color = .dim, disabled: Bool = false, rule: Bool = true,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
         HStack(alignment: .center, spacing: 20) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                if let detail { Text(detail).font(.detail).foregroundStyle(Color.dim) }
+                Text(title).foregroundStyle(disabled ? Color.dim : .white)
+                if let detail { Text(detail).font(.detail).foregroundStyle(detailColor) }
             }
             Spacer()
-            control()
+            control().disabled(disabled)
         }
         .padding(.vertical, 9)
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
+        .overlay(alignment: .bottom) { if rule { Rectangle().fill(Color.rule).frame(height: 1) } }
     }
 
     private func toggle(_ title: String, detail: String? = nil, _ binding: Binding<Bool>, disabled: Bool = false) -> some View {
-        row(title, detail: detail) {
-            Toggle("", isOn: binding).toggleStyle(.switch).labelsHidden().controlSize(.small).tint(.white).disabled(disabled)
+        row(title, detail: detail, disabled: disabled) {
+            Toggle(title, isOn: binding).toggleStyle(.switch).labelsHidden().controlSize(.small).tint(.white)
         }
     }
 
     private func segmented<Value: Hashable>(
         _ title: String, detail: String? = nil, _ binding: Binding<Value>,
-        options: [(Value, String)]
+        options: [(Value, String)], disabled: Bool = false
     ) -> some View {
-        row(title, detail: detail) {
+        row(title, detail: detail, disabled: disabled) {
             HStack(spacing: 0) {
                 ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                    let selected = binding.wrappedValue == option.0
                     Button {
                         binding.wrappedValue = option.0
                     } label: {
                         Text(option.1)
                             .font(.detail)
+                            .lineLimit(1)
+                            .fixedSize()
                             .padding(.horizontal, 9).padding(.vertical, 3)
-                            .background(binding.wrappedValue == option.0 ? Color.white : .clear)
-                            .foregroundStyle(binding.wrappedValue == option.0 ? .black : Color.dim)
+                            .background(selected ? Color.white : .clear)
+                            .foregroundStyle(selected ? .black : Color.dim)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(title): \(option.1)")
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
             .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.stroke))
             .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+    }
+
+    /// For choices whose count depends on the data (accounts), where a segmented control would overflow.
+    private func menu<Value: Hashable>(
+        _ title: String, detail: String? = nil, _ binding: Binding<Value>, options: [(Value, String)], disabled: Bool = false
+    ) -> some View {
+        row(title, detail: detail, disabled: disabled) {
+            Menu {
+                ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                    Button(option.1) { binding.wrappedValue = option.0 }
+                }
+            } label: {
+                chip {
+                    Text(options.first { $0.0 == binding.wrappedValue }?.1 ?? options.first?.1 ?? "").font(.detail)
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(Color.dim)
+                }
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel(title)
         }
     }
 
@@ -154,67 +221,107 @@ struct SettingsView: View {
         Button(title, action: action).buttonStyle(.plain).foregroundStyle(Color.link).font(.detail)
     }
 
-    private func field(_ title: String, detail: String? = nil, placeholder: String, _ binding: Binding<String>, secure: Bool = false) -> some View {
-        row(title, detail: detail) {
+    private func field(
+        _ title: String, detail: String? = nil, detailColor: Color = .dim, placeholder: String, _ binding: Binding<String>,
+        secure: Bool = false, width: CGFloat = 260
+    ) -> some View {
+        row(title, detail: detail, detailColor: detailColor) {
             chip {
                 Group {
                     if secure { SecureField(placeholder, text: binding) } else { TextField(placeholder, text: binding) }
                 }
                 .textFieldStyle(.plain)
+                .font(.body)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 260)
+                .frame(width: width)
+                .accessibilityLabel(title)
             }
         }
     }
 
     // MARK: General
 
-    private var inApplications: Bool { Bundle.main.bundleURL.path.hasPrefix("/Applications/") }
+    private var inApplications: Bool { LoginItemManager.inApplications }
 
     private var general: some View {
         VStack(alignment: .leading, spacing: 0) {
-            toggle(
-                "Launch at login", detail: inApplications ? nil : "move the app to /Applications first",
-                Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }), disabled: !inApplications)
+            if inApplications || !Notifier.shared.available {
+                toggle(
+                    "Launch at login", detail: inApplications ? nil : "needs the .app bundle from make-app.sh",
+                    Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }), disabled: !inApplications)
+            } else {
+                // The same one-click fix the setup checklist offers.
+                row("Launch at login", detail: "needs the app in /Applications") {
+                    FixLink(fix: .moveToApplications, setup: setup)
+                }
+            }
             section("Slack review nudges")
-            field("Channel ID", placeholder: "C0123456789", Binding(get: { slack.slackChannel ?? "" }, set: { slack.slackChannel = $0 }))
-            field(
-                "Bot token", detail: "optional, falls back to claude -p", placeholder: "xoxb-…",
-                Binding(get: { slack.slackBotToken ?? "" }, set: { slack.slackBotToken = $0 }), secure: true)
-            HStack {
-                Spacer()
-                link(slackSaveStatus ?? "Save") {
-                    do {
-                        var config = Config.load()
-                        config.slackChannel = slack.slackChannel
-                        config.slackBotToken = slack.slackBotToken
-                        try config.save()
-                        slackSaveStatus = "Saved"
-                    } catch { slackSaveStatus = "save failed" }
-                    Task {
-                        try? await Task.sleep(for: .seconds(2)); slackSaveStatus = nil
+            Group {
+                field("Channel ID", placeholder: "C0123456789", slackField(\.slackChannel))
+                field("Bot token", detail: "optional · falls back to claude -p", placeholder: "xoxb-…", slackField(\.slackBotToken), secure: true)
+            }
+            .onSubmit(saveSlack)
+            if slackSaveFailed {
+                Text("could not update ~/.config/notchivity/config.json").font(.detail).foregroundStyle(Color.warn).padding(.top, 6)
+            }
+            section("About")
+            row("Setup check", detail: setupSummary, detailColor: setup.blocking > 0 ? .warn : .dim) {
+                if setup.pinned {
+                    Text("on next hover").font(.detail).foregroundStyle(Color.dim)
+                } else {
+                    link("show on next hover") {
+                        setup.pinned = true
+                        Task { await setup.run() }
                     }
                 }
             }
-            .padding(.top, 10)
-            section("About")
-            row("Setup check") {
-                link("Run") {
-                    model.setup.pinned = true; Task { await model.setup.run() }
-                }
-            }
             row("Version") { Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev").foregroundStyle(Color.dim) }
-            row("Quit Notchivity", detail: "removes the panel from the notch until you open the app again") {
-                link("Quit") { NSApp.terminate(nil) }
+            row("Quit Notchivity") {
+                link("quit") { NSApp.terminate(nil) }
             }
         }
+    }
+
+    private var setupSummary: String {
+        if !setup.hasRun { return "not run yet" }
+        return setup.blocking == 0 ? "done" : "\(setup.blocking) to set up"
+    }
+
+    private func slackField(_ key: WritableKeyPath<Config, String?>) -> Binding<String> {
+        Binding(
+            get: { slack[keyPath: key] ?? "" },
+            set: {
+                slack[keyPath: key] = $0
+                slackDirty = true
+            })
+    }
+
+    /// Writes both Slack fields over the file as it is now. `slack` is re-read whenever the
+    /// window comes forward, so a hand edit to config.json (README documents it) is not undone.
+    private func saveSlack() {
+        guard slackDirty else { return }
+        func trimmed(_ value: String?) -> String? {
+            let text = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return text.isEmpty ? nil : text
+        }
+        do {
+            var config = try Config.loadForUpdate()
+            config.slackChannel = trimmed(slack.slackChannel)
+            config.slackBotToken = trimmed(slack.slackBotToken)
+            try config.save()
+            slackDirty = false
+            slackSaveFailed = false
+        } catch {
+            slackSaveFailed = true
+        }
+        model.reloadConfig()
     }
 
     // MARK: PRs
 
     private var prs: some View {
         VStack(alignment: .leading, spacing: 0) {
-            row("Category order", detail: "drag to reorder, leftmost is listed first") { EmptyView() }
+            row("Category order", detail: "drag to reorder, leftmost is listed first", rule: false) { EmptyView() }
             CategoryOrderView(order: Binding(get: { settings.categoryOrder }, set: { settings.categoryOrder = $0 }))
             segmented(
                 "When the list is long", Binding(get: { settings.overflow }, set: { settings.overflow = $0 }),
@@ -229,20 +336,11 @@ struct SettingsView: View {
 
     private var usage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            row("Quota source", detail: proxyURL.isEmpty ? "Local account discovery" : "CLI proxy · \(URL(string: proxyURL)?.host ?? proxyURL)") {
-                link("Configure…") { showingProxyConnection = true }
-            }
-            segmented(
-                "Account for the tab underline", $settings.underlineAccount,
-                options: [("", "first")] + model.accounts.map { ($0.id, $0.displayLabel) })
-            if !model.accounts.isEmpty {
-                section("Names")
-                ForEach(model.accounts) { account in
-                    field(account.label, detail: account.provider.name, placeholder: account.label, accountName(account.id))
-                }
+            row("Quota source", detail: proxyURL.isEmpty ? "local account discovery" : "CLI proxy · \(URL(string: proxyURL)?.host ?? proxyURL)") {
+                link("configure…") { showingProxyConnection = true }
             }
             segmented("Poll interval", $settings.usageInterval, options: [120.0, 180.0, 300.0, 600.0].map { ($0, "\(Int($0 / 60)) min") })
-            row("Notify when usage crosses", detail: "percentages, applies to every usage window") { EmptyView() }
+            row("Notify when usage crosses", detail: "percentages, applies to every usage window", rule: false) { EmptyView() }
             HStack(spacing: 6) {
                 ForEach(settings.thresholds, id: \.self) { value in
                     chip {
@@ -253,6 +351,7 @@ struct SettingsView: View {
                             Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Color.dim)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(Int(value)) percent")
                     }
                 }
                 chip {
@@ -263,6 +362,7 @@ struct SettingsView: View {
                         .frame(width: 34)
                         .onChange(of: newThreshold) { _, text in newThreshold = String(text.filter(\.isNumber).prefix(3)) }
                         .onSubmit(addThreshold)
+                        .accessibilityLabel("New threshold percent")
                 }
                 Button(action: addThreshold) {
                     Image(systemName: "plus").font(.system(size: 10, weight: .bold)).frame(width: 18, height: 18)
@@ -271,15 +371,34 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(pendingThreshold == nil ? Color.dim : .white)
                 .disabled(pendingThreshold == nil)
+                .accessibilityLabel("Add threshold")
             }
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
+            // Last, like "In the tab" on Displays, so the rows above do not read as part of it.
+            if !model.accounts.isEmpty {
+                section("Names")
+                ForEach(model.accounts) { account in
+                    field(account.label, detail: nameDetail(account), placeholder: "rename", accountName(account.id), width: 160)
+                }
+            }
         }
     }
 
+    /// Provider (when the name does not already say it) and sign-in folder, which tell apart two
+    /// accounts the discovery labelled the same (two gmail sign-ins are both "gmail").
+    private func nameDetail(_ account: AccountUsage) -> String? {
+        let parts = [
+            account.provider.name == account.label ? nil : account.provider.name,
+            account.configDirectory.map { URL(fileURLWithPath: $0).lastPathComponent },
+        ]
+        let detail = parts.compactMap { $0 }.joined(separator: " · ")
+        return detail.isEmpty ? nil : detail
+    }
+
     /// Writes straight through so the notch shows the new name as it is typed; blank
-    /// falls back to the name discovered from the sign-in.
+    /// falls back to the name discovered from the sign-in, which is the row's title.
     private func accountName(_ id: String) -> Binding<String> {
         Binding(
             get: { settings.accountNames[id] ?? "" },
@@ -305,14 +424,16 @@ struct SettingsView: View {
     private var notifications: some View {
         VStack(alignment: .leading, spacing: 0) {
             toggle("Peek in the notch on events", $settings.peekEnabled)
-            segmented("Peek duration", $settings.peekDuration, options: [2.0, 3.0, 5.0, 8.0].map { ($0, "\(Int($0)) s") })
+            segmented(
+                "Peek duration", $settings.peekDuration, options: [2.0, 3.0, 5.0, 8.0].map { ($0, "\(Int($0)) s") },
+                disabled: !settings.peekEnabled)
             section("Notification Center")
-            if !Notifier.shared.available {
-                Text("needs the .app bundle from make-app.sh").font(.detail).foregroundStyle(Color.dim)
-            }
+            // When unavailable, the reason rides on the first row rather than a subtitle under the heading.
             ForEach(Event.Kind.allCases, id: \.self) { kind in
                 toggle(
-                    kind.title, Binding(get: { settings.notifies(kind) }, set: { settings.setNotifies(kind, $0) }),
+                    kind.title,
+                    detail: !Notifier.shared.available && kind == Event.Kind.allCases.first ? "needs the .app bundle from make-app.sh" : nil,
+                    Binding(get: { settings.notifies(kind) }, set: { settings.setNotifies(kind, $0) }),
                     disabled: !Notifier.shared.available)
             }
         }
@@ -320,15 +441,24 @@ struct SettingsView: View {
 
     // MARK: Displays
 
+    /// Whether any screen shows the tab: every notch-less Mac does, a notched one only with external displays on.
+    private var tabShown: Bool {
+        settings.externalDisplays || !NSScreen.screens.contains { $0.auxiliaryTopLeftArea != nil }
+    }
+
     private var displays: some View {
         VStack(alignment: .leading, spacing: 0) {
+            segmented("Hover delay", detail: "before the panel expands", $settings.hoverDelayMs, options: [0, 120, 250, 500].map { ($0, "\($0) ms") })
             toggle("Show on external displays too", detail: "screens without a notch get a black tab at the top centre", $settings.externalDisplays)
             section("In the tab")
-            toggle("Usage", detail: "usage % and underline for the chosen account", $settings.collapsedUsage)
+            toggle("Usage", detail: "usage % and underline for one account", $settings.collapsedUsage, disabled: !tabShown)
+            menu(
+                "Account", $settings.underlineAccount,
+                options: [("", "first listed")] + model.accounts.map { ($0.id, $0.displayLabel) },
+                disabled: !tabShown || !settings.collapsedUsage)
             segmented(
                 "PRs", Binding(get: { settings.indicator }, set: { settings.indicator = $0 }),
-                options: [(.counts, "counts"), (.dots, "dots"), (.none, "nothing")])
-            segmented("Hover delay", $settings.hoverDelayMs, options: [0, 120, 250, 500].map { ($0, "\($0) ms") })
+                options: [(.counts, "counts"), (.dots, "dots"), (.none, "nothing")], disabled: !tabShown)
         }
     }
 }
@@ -358,6 +488,15 @@ struct CategoryOrderView: View {
                 .offset(x: offset(for: category))
                 .zIndex(drag?.category == category ? 1 : 0)
                 .transaction { if drag?.category == category { $0.animation = nil } }
+                // Dragging is mouse-only; these give the same reorder to the context menu and VoiceOver.
+                .contextMenu {
+                    Button("Move Left") { move(category, by: -1) }.disabled(order.first == category)
+                    Button("Move Right") { move(category, by: 1) }.disabled(order.last == category)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityHint("position \((order.firstIndex(of: category) ?? 0) + 1) of \(order.count)")
+                .accessibilityAction(named: "Move Left") { move(category, by: -1) }
+                .accessibilityAction(named: "Move Right") { move(category, by: 1) }
             }
         }
         .animation(.easeOut(duration: 0.15), value: order)
@@ -383,6 +522,11 @@ struct CategoryOrderView: View {
                 if from != to { order.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to) }
             }
             .onEnded { _ in withAnimation(.easeOut(duration: 0.15)) { drag = nil } }
+    }
+
+    private func move(_ category: PRCategory, by step: Int) {
+        guard let from = order.firstIndex(of: category), order.indices.contains(from + step) else { return }
+        order.swapAt(from, from + step)
     }
 
     /// Where a chip rests in the row for the current order, from measured widths.

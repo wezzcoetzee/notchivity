@@ -59,7 +59,7 @@ public struct PullRequest: Codable, Equatable, Identifiable {
     public var category: PRCategory {
         if ci == .failure || conflicts { return .failing }
         if unresolvedThreads > 0 || changesRequested { return .needsAction }
-        if approvals > 0 && !draft && ci != .pending { return .ready }
+        if approvals > 0 && !draft { return ci == .pending ? .awaitingReview : .ready }
         return reviewedByHuman ? .needsAction : .awaitingReview
     }
 
@@ -70,15 +70,35 @@ public struct PullRequest: Codable, Equatable, Identifiable {
         if ci == .failure { out.append(("CI failed", .bad)) }
         if ci == .pending { out.append(("CI running", .dim)) }
         if changesRequested { out.append(("changes requested", .warn)) }
-        if unresolvedThreads > 0 { out.append((plural(unresolvedThreads, "thread"), .warn)) }
+        if unresolvedThreads > 0 { out.append((plural(unresolvedThreads, "comment"), .warn)) }
         if approvals > 0 { out.append(("approved", .good)) }
-        if ci == .success && !conflicts { out.append(("CI ✓", .good)) }
+        // A pass is the absence of an alarm, so it stays grey and the row keeps one lamp colour.
+        if ci == .success && !conflicts { out.append(("CI ✓", .dim)) }
         if draft { out.append(("draft", .dim)) }
+        // An amber dot always leads with an amber reason: an approved draft needs marking
+        // ready, anything else was reviewed without an approval.
+        if category == .needsAction, !out.contains(where: { $0.1 == .warn }) {
+            out.removeAll { $0.0 == "draft" }
+            out.insert(draft ? ("draft", .warn) : ("reviewed", .warn), at: 0)
+        }
         return out
     }
 }
 
-public enum Tone { case bad, warn, good, dim, info }
+public enum Tone {
+    case bad, warn, good, dim, info
+
+    /// For picking the most urgent of several events.
+    public var severity: Int {
+        switch self {
+        case .bad: return 4
+        case .warn: return 3
+        case .good: return 2
+        case .info: return 1
+        case .dim: return 0
+        }
+    }
+}
 
 public func plural(_ n: Int, _ word: String) -> String { "\(n) \(word)\(n == 1 ? "" : "s")" }
 
