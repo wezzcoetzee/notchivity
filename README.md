@@ -86,6 +86,8 @@ Without `slackBotToken` it falls back to `claude -p` and your Slack MCP connecti
 
 ## Build and run
 
+Needs the full Xcode toolchain: the Command Line Tools lack the SwiftUI macro plugin, so `@State` fails to compile. Run `sudo xcode-select -s /Applications/Xcode.app` once, or prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
+
 ```sh
 swift build -c release
 .build/release/Notchivity
