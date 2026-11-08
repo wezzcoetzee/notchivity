@@ -102,6 +102,15 @@ open dist/Notchivity-0.1.0.dmg   # drag to Applications
 
 The bundle is ad-hoc signed. On another Mac the first launch needs right-click → Open.
 
+To publish a release, push a version tag from a commit containing `.github/workflows/release.yml`:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The [shared macOS release workflow](https://github.com/wezzcoetzee/.github/blob/main/.github/workflows/macos-release.yml) runs `./make-app.sh` with the tag's version (without `v`) and attaches the DMG and ZIP to a GitHub Release with generated notes. Tags containing a hyphen, such as `v0.1.0-beta.1`, create prereleases. Signing stays ad-hoc; no Apple credentials or notarisation are involved.
+
 `NOTCHIVITY_STATE=expanded` or `=peek` pins the panel open for screenshots; `NOTCHIVITY_SETTINGS=1` opens the Settings window at launch.
 
 ## Tests
