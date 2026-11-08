@@ -2,15 +2,47 @@ import AppKit
 import NotchivityKit
 import SwiftUI
 
-/// `Notchivity --screenshots <dir>` renders the store images; `--gallery <dir>` renders every
-/// UI state (setup, errors, empty, collapsed tabs, Settings tabs) for design review. Both use
-/// fixed sample data, so no real accounts or PRs appear. See "Screenshots" in README.md.
+/// `Notchivity --screenshots <dir>` renders the store images into `<dir>/raw` (the bare views)
+/// and `<dir>/framed` (headline and background at 2880×1800, the Mac App Store size);
+/// `--gallery <dir>` renders every UI state (setup, errors, empty, collapsed tabs, Settings tabs)
+/// for design review. Both use fixed sample data, so no real accounts or PRs appear. See
+/// "Screenshots" in README.md.
 @MainActor
 enum Screenshots {
     static func render(to dir: URL) {
-        let model = demoModel()
-        saveStoreImage(panel(ExpandedView(model: model, geometry: geometry(.expanded))), "expanded", dir)
-        saveStoreImage(peekStack(peeks), "peek", dir)
+        let expanded = geometry(.expanded)
+        let nudge = demoModel()
+        nudge.selectedPRs = Set(nudge.orderedPRs.filter { [9, 1204].contains($0.number) }.map(\.id))
+        let setup = SetupModel()
+        setup.loadDemo(setupChecks)
+
+        let shots: [(name: String, view: AnyView, headline: String, subtitle: String, width: CGFloat)] = [
+            (
+                "expanded", AnyView(panel(ExpandedView(model: demoModel(), geometry: expanded))),
+                "Your limits and PRs, in the notch", "Claude, Codex and Grok usage beside every open pull request", 880
+            ),
+            (
+                "peek", AnyView(peekStack(peeks)),
+                "Know the moment it changes", "CI failures, approvals and usage thresholds drop out of the notch", 576
+            ),
+            (
+                "nudge", AnyView(panel(ExpandedView(model: nudge, geometry: expanded))),
+                "Nudge reviewers from the notch", "Pick the PRs that are waiting and ask for review in Slack", 880
+            ),
+            (
+                "tab", AnyView(storeTabs()),
+                "No notch? You get a tab", "Usage and the PRs that need you, on any external display", 420
+            ),
+            (
+                "setup", AnyView(panel(SetupView(setup: setup, geometry: expanded))),
+                "Every problem comes with its fix", "First-run checks for each account, GitHub and Slack", 880
+            ),
+        ]
+        for shot in shots {
+            saveStoreImage(shot.view, shot.name, dir.appendingPathComponent("raw"))
+            saveFramed(
+                shot.view, shot.headline, shot.subtitle, width: shot.width, shot.name, dir.appendingPathComponent("framed"))
+        }
     }
 
     static func gallery(to dir: URL) {
@@ -88,6 +120,19 @@ enum Screenshots {
         }
     }
 
+    /// The external-display tab with PR counts and with category dots.
+    private static func storeTabs() -> some View {
+        let model = demoModel()
+        let fake = geometry(.collapsed, fake: true)
+        let done = SetupModel()
+        done.loadDemo([])
+        return VStack(spacing: 24) {
+            ForEach([Settings.Indicator.counts, .dots], id: \.self) { indicator in
+                panel(CollapsedView(model: model, geometry: fake, setup: done, indicator: indicator), radius: 12)
+            }
+        }
+    }
+
     /// The external-display tab in each indicator mode, plus the hardware notch during first-run setup.
     private static func collapsedTabs() -> some View {
         let model = demoModel()
@@ -111,13 +156,31 @@ enum Screenshots {
         }
     }
 
+    /// Centers `content` under a headline on a 16:10 canvas `width` points wide, saved at 2880×1800.
+    /// A narrower canvas shows `content` larger.
+    private static func saveFramed(
+        _ content: some View, _ headline: String, _ subtitle: String, width: CGFloat, _ name: String, _ dir: URL
+    ) {
+        let canvas = VStack(spacing: width * 0.012) {
+            Text(headline).font(.system(size: width * 0.05, weight: .bold))
+            Text(subtitle).font(.system(size: width * 0.023, weight: .medium)).foregroundStyle(Color(white: 0.75))
+            content.padding(.top, width * 0.02).frame(maxHeight: .infinity)
+        }
+        .foregroundStyle(.white)
+        .padding(.vertical, width * 0.03)
+        .frame(width: width, height: width / 1.6)
+        .background(LinearGradient(colors: [Color(white: 0.1), Color(white: 0.045)], startPoint: .top, endPoint: .bottom))
+        saveStoreImage(canvas, name, dir, scale: 2880 / width)
+    }
+
     // MARK: Rendering
 
-    /// Store images: transparent, 3x, through ImageRenderer (the notch views have no AppKit controls).
-    private static func saveStoreImage(_ view: some View, _ name: String, _ dir: URL) {
+    /// Store images through ImageRenderer (the notch views have no AppKit controls), transparent
+    /// unless the view draws its own background.
+    private static func saveStoreImage(_ view: some View, _ name: String, _ dir: URL, scale: CGFloat = 3) {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let renderer = ImageRenderer(content: view.environment(\.colorScheme, .dark))
-        renderer.scale = 3
+        renderer.scale = scale
         guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
             let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
         else {
