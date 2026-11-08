@@ -6,8 +6,6 @@ It replaces three earlier tools: boringNotch (the notch shell), [tokengochi](../
 
 ![Usage and open PRs in the expanded notch](screenshots/framed/expanded.png)
 
-![Events drop out of the notch](screenshots/framed/peek.png)
-
 ## States
 
 | State | When | Shows |
@@ -88,6 +86,8 @@ Without `slackBotToken` it falls back to `claude -p` and your Slack MCP connecti
 
 ## Build and run
 
+Needs the full Xcode toolchain: the Command Line Tools lack the SwiftUI macro plugin, so `@State` fails to compile. Run `sudo xcode-select -s /Applications/Xcode.app` once, or prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
+
 ```sh
 swift build -c release
 .build/release/Notchivity
@@ -131,12 +131,23 @@ Tests/NotchivityKitTests
 
 ## Screenshots
 
-The images above render the real SwiftUI views offscreen with fixed sample data, so no real accounts or PRs appear:
+<table>
+  <tr>
+    <td><img src="screenshots/framed/peek.png" alt="Events drop out of the notch"></td>
+    <td><img src="screenshots/framed/nudge.png" alt="Selected PRs with ask for review in Slack"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/framed/tab.png" alt="The collapsed tab on a display without a notch"></td>
+    <td><img src="screenshots/framed/setup.png" alt="First-run setup checks with a fix on each failing row"></td>
+  </tr>
+</table>
+
+These images render the real SwiftUI views offscreen with fixed sample data, so no real accounts or PRs appear:
 
 ```sh
-swift build && .build/debug/Notchivity --screenshots screenshots/raw
+swift build && .build/debug/Notchivity --screenshots screenshots
 ```
 
-`--gallery <dir>` renders every state for design review: loading, empty, errors, selection, overflow, setup, the collapsed tab modes, all peeks and each Settings tab. Settings reads `~/.config/notchivity/config.json`, so point `CFFIXED_USER_HOME` at a scratch home to keep your own channel out of the images.
+That writes the bare views to `screenshots/raw/` and the five App Store images (expanded, peek, nudge, tab, setup), with the headline and background at 2880×1800, to `screenshots/framed/`. Headlines live in `Screenshots.render`.
 
-`screenshots/framed/` adds the headline and background at 2880×1800, the Mac App Store size.
+`--gallery <dir>` renders every state for design review: loading, empty, errors, selection, overflow, setup, the collapsed tab modes, all peeks and each Settings tab. Settings reads `~/.config/notchivity/config.json`, so point `CFFIXED_USER_HOME` at a scratch home to keep your own channel out of the images.

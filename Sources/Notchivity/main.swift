@@ -17,7 +17,7 @@ if CommandLine.arguments.contains("--doctor") {
 
 if let index = CommandLine.arguments.firstIndex(where: { $0 == "--screenshots" || $0 == "--gallery" }) {
     let gallery = CommandLine.arguments[index] == "--gallery"
-    let dir = URL(fileURLWithPath: CommandLine.arguments.dropFirst(index + 1).first ?? (gallery ? "screenshots/gallery" : "screenshots/raw"))
+    let dir = URL(fileURLWithPath: CommandLine.arguments.dropFirst(index + 1).first ?? (gallery ? "screenshots/gallery" : "screenshots"))
     _ = NSApplication.shared
     MainActor.assumeIsolated { gallery ? Screenshots.gallery(to: dir) : Screenshots.render(to: dir) }
     exit(0)
