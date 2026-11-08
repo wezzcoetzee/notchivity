@@ -1,0 +1,13 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: wezzcoetzee/.github/.github/workflows/macos-release.yml@main
+    with:
+      prerelease: ${{ contains(github.ref_name, '-') }}
