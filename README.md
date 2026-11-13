@@ -6,6 +6,16 @@ It replaces three earlier tools: boringNotch (the notch shell), [tokengochi](../
 
 ![Usage and open PRs in the expanded notch](screenshots/framed/expanded.png)
 
+## Install
+
+Download the DMG from [Releases](https://github.com/wezzcoetzee/notchivity/releases) and drag Notchivity to Applications.
+
+The app is not notarized, so the first launch shows "Apple could not verify Notchivity". Click Done, then open System Settings, Privacy & Security, and click Open Anyway next to Notchivity. Or clear the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Notchivity.app
+```
+
 ## States
 
 | State | When | Shows |
