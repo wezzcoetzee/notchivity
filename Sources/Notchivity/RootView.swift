@@ -19,7 +19,12 @@ struct RootView: View {
             // the 220ms ease-out, which is most of the way there by then), and vanishes
             // at once on the way back, so text never sits over a half-sized background.
             // `.id` makes the switch branch a real insertion; a transition on the bare switch never fires.
-            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.1).delay(0.1)), removal: .identity))
+            // Removal needs its own zero-length animation: `.identity` inherits the 220ms state
+            // animation below, so SwiftUI kept the old content on screen until it ended, then popped it.
+            .transition(
+                .asymmetric(
+                    insertion: .opacity.animation(.easeOut(duration: 0.1).delay(0.1)),
+                    removal: .opacity.animation(.linear(duration: 0))))
             .id(geometry.state)
             .foregroundStyle(.white)
             .background(UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius).fill(.black))
