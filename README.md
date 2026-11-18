@@ -154,6 +154,8 @@ open dist/Notchivity-0.2.0.dmg   # drag to Applications
 
 The bundle is ad-hoc signed. On another Mac the first launch needs Open Anyway, as in Install.
 
+Pull requests and pushes to `main` run the tests (and `swift format lint` when a `.swift-format` config exists) through the [shared macOS CI workflow](https://github.com/wezzcoetzee/.github/blob/main/.github/workflows/macos-ci.yml).
+
 To publish a release, push a version tag from a commit containing `.github/workflows/release.yml`:
 
 ```sh
