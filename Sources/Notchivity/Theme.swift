@@ -21,6 +21,7 @@ extension Color {
         case .good: self = .good
         case .dim: self = .dim
         case .info: self = .info
+        case .waiting: self = .link
         }
     }
 
@@ -61,13 +62,16 @@ struct Bar: View {
     var height: CGFloat = 5
     /// Greys the fill like the percentage beside it when the reading is in doubt; red stays red.
     var old = false
+    /// A secondary window's line: grey until it reaches amber, so only an alarm pulls the eye.
+    var quiet = false
 
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.track)
                 if let pct {
-                    Capsule().fill(Color.usage(pct, old: old)).frame(width: max(height, proxy.size.width * CGFloat(min(pct, 100) / 100)))
+                    Capsule().fill(quiet && pct < 75 ? Color.dim : Color.usage(pct, old: old)).frame(
+                        width: max(height, proxy.size.width * CGFloat(min(pct, 100) / 100)))
                 }
             }
         }
@@ -76,8 +80,15 @@ struct Bar: View {
     }
 }
 
+/// Filled for a PR state; `hollow` marks a system fault, so the two never read alike.
 struct Dot: View {
     let color: Color
     var size: CGFloat = 7
-    var body: some View { Circle().fill(color).frame(width: size, height: size) }
+    var hollow = false
+    var body: some View {
+        Group {
+            if hollow { Circle().strokeBorder(color, lineWidth: 1.5) } else { Circle().fill(color) }
+        }
+        .frame(width: size, height: size)
+    }
 }

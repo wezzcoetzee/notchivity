@@ -16,7 +16,8 @@ struct SetupView: View {
                 Text(headline).foregroundStyle(setup.blocking > 0 ? Color.warn : Color.dim)
                 Spacer()
                 // The dashboard is always one click away, whatever the results.
-                Button("close", action: setup.close).buttonStyle(.plain).foregroundStyle(Color.link)
+                // "skip" while required checks fail, so it is clear the checks are being set aside.
+                Button(setup.blocking > 0 ? "skip for now" : "close", action: setup.close).buttonStyle(.plain).foregroundStyle(Color.link)
             }
             .font(.detail).foregroundStyle(Color.dim)
             .padding(.horizontal, 18)
@@ -26,12 +27,43 @@ struct SetupView: View {
             if setup.checks.isEmpty {
                 Text("running checks…").font(.body).foregroundStyle(Color.dim).padding(.horizontal, 18)
             }
-            ForEach(setup.checks) { check in
+            ForEach(setup.requiredToDo) { check in
                 SetupRow(check: check, setup: setup)
+            }
+            if !setup.passed.isEmpty { passedRow }
+            if setup.showPassed {
+                ForEach(setup.passed) { check in
+                    SetupRow(check: check, setup: setup, optional: !check.required)
+                }
+            }
+            if !setup.optionalToDo.isEmpty {
+                SectionTitle("Optional").padding(.horizontal, 18).padding(.top, 12)
+                ForEach(setup.optionalToDo) { check in
+                    SetupRow(check: check, setup: setup, optional: true)
+                }
+            }
+            // Only once the arrow keys are on a row, like the dashboard's legend.
+            if setup.focusedCheck != nil {
+                Text("↑↓ move · ↩ fix · esc back").font(.detail).foregroundStyle(Color.dim)
+                    .padding(.horizontal, 18).padding(.top, 8)
             }
         }
         .padding(.bottom, 14)
         .frame(width: Self.width)
+    }
+
+    /// Passing checks fold into one line so the rows that need a look lead; "show" lists them.
+    private var passedRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Dot(color: .good, size: 8).offset(y: 1)
+            Text("\(setup.passed.count) passed").font(.body).foregroundStyle(Color.dim)
+            Spacer()
+            Button(setup.showPassed ? "hide" : "show") { setup.showPassed.toggle() }
+                .buttonStyle(.plain).font(.detail).foregroundStyle(Color.link)
+        }
+        .frame(minHeight: ExpandedView.rowHeight)
+        .padding(.horizontal, 18)
+        .overlay(alignment: .top) { Rectangle().fill(Color.rule).frame(height: 1).padding(.horizontal, 18) }
     }
 
     private var headline: String {
@@ -43,15 +75,23 @@ struct SetupView: View {
 private struct SetupRow: View {
     let check: SetupCheck
     @ObservedObject var setup: SetupModel
+    /// Under the "Optional" label, which already says it, so the detail drops its own "optional ·".
+    var optional = false
+
+    private var detail: String? {
+        guard optional, let detail = check.detail else { return check.detail }
+        if detail == "optional" { return nil }
+        return detail.hasPrefix("optional · ") ? String(detail.dropFirst("optional · ".count)) : detail
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Dot(color: color, size: 8).offset(y: 1)
             VStack(alignment: .leading, spacing: 1) {
-                // Passing and switched-off rows step back, like "CI ✓": only what needs a look stays white.
+                // Passing and switched-off rows step back: only what needs a look stays white.
                 Text(check.title).font(check.status == .fail ? .bodyStrong : .body)
                     .foregroundStyle(check.status == .pass || check.status == .off ? Color.dim : .white)
-                if let detail = check.detail {
+                if let detail {
                     Text(detail).font(.detail).foregroundStyle(Color.dim).lineLimit(2)
                 }
             }
@@ -59,11 +99,16 @@ private struct SetupRow: View {
             // The row text reads as one element and the fix stays a separate, pressable button.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel([check.title, statusWord, check.detail].compactMap { $0 }.joined(separator: ", "))
-            if let fix = check.fix { FixLink(fix: fix, setup: setup) }
+            if let fix = check.fix { FixLink(fix: fix, setup: setup, quiet: optional) }
         }
         .padding(.vertical, 5)
-        .padding(.horizontal, 18)
-        .overlay(alignment: .top) { Rectangle().fill(Color.rule).frame(height: 1).padding(.horizontal, 18) }
+        // The dashboard's 43pt row, so the checklist and the PR list share one rhythm.
+        .frame(minHeight: ExpandedView.rowHeight)
+        // The highlight reaches past the text by the same inset as a PR row's.
+        .padding(.horizontal, ExpandedView.rowInset)
+        .modifier(RowHighlight(focused: setup.focusedCheck == check.id))
+        .overlay(alignment: .top) { Rectangle().fill(Color.rule).frame(height: 1).padding(.horizontal, ExpandedView.rowInset) }
+        .padding(.horizontal, 18 - ExpandedView.rowInset)
         .accessibilityElement(children: .contain)
     }
 
@@ -92,6 +137,9 @@ private struct SetupRow: View {
 struct FixLink: View {
     let fix: SetupCheck.Fix
     @ObservedObject var setup: SetupModel
+    /// An optional fix: Dimmed Grey until hovered, so required fixes lead the eye.
+    var quiet = false
+    @State private var hovering = false
     @State private var feedback: String?
     @State private var clear: Task<Void, Never>?
 
@@ -110,6 +158,7 @@ struct FixLink: View {
         }
         .buttonStyle(.plain)
         .font(.detail)
-        .foregroundStyle(shown == nil ? Color.link : Color.dim)
+        .foregroundStyle(shown == nil && (!quiet || hovering) ? Color.link : Color.dim)
+        .onHover { hovering = $0 }
     }
 }

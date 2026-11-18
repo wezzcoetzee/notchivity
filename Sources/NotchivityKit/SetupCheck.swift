@@ -11,6 +11,8 @@ public struct SetupCheck: Identifiable, Equatable {
         case allowNotifications
         case openNotificationSettings
         case openSlackSettings
+        /// Opens the configured Slack channel (by ID) in the Slack app, where the bot is invited.
+        case openSlackChannel(String)
         case enableLoginItem
         case moveToApplications
 
@@ -19,10 +21,11 @@ public struct SetupCheck: Identifiable, Equatable {
             case .openClaudeCode: return "open Claude Code"
             case .retry: return "retry"
             case .copy(let command): return "copy \(command)"
-            case .allowNotifications: return "allow"
+            case .allowNotifications: return "allow notifications"
             case .openNotificationSettings: return "open System Settings"
-            case .openSlackSettings: return "open Settings"
-            case .enableLoginItem: return "enable"
+            case .openSlackSettings: return "open Slack settings"
+            case .openSlackChannel: return "open Slack"
+            case .enableLoginItem: return "enable launch at login"
             case .moveToApplications: return "move to /Applications"
             }
         }
@@ -82,7 +85,11 @@ public struct SetupDoctor {
         async let codex = codexChecks(usage: usage?.filter { $0.provider == .codex })
         async let grok = grokChecks(usage: usage?.filter { $0.provider == .grok })
         let results = await (claude, codex, grok)
-        return results.0 + results.1 + results.2
+        // Claude is one provider of three: once Codex or Grok Build reads, a Codex-only or
+        // Grok-only setup is complete and a missing Claude sign-in stops blocking.
+        let othersRead = (results.1 + results.2).contains { $0.status == .pass }
+        let claudeRows = results.0.map { othersRead && $0.id == "accounts" && $0.status == .fail ? SetupCheck.noClaudeSignIn(required: false) : $0 }
+        return claudeRows + results.1 + results.2
     }
 
     func proxyChecks(_ readings: [AccountUsage]) -> [SetupCheck] {
@@ -101,12 +108,7 @@ public struct SetupDoctor {
         if let usage { return usageChecks(usage) }
         let accounts = ClaudeAccountDiscovery.discover()
         guard !accounts.isEmpty else {
-            return [
-                SetupCheck(
-                    id: "accounts", title: "no Claude sign-in found", status: .fail,
-                    detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
-                    fix: .openClaudeCode())
-            ]
+            return [.noClaudeSignIn(required: true)]
         }
         let checks = [
             SetupCheck(
@@ -150,12 +152,7 @@ public struct SetupDoctor {
 
     func usageChecks(_ readings: [AccountUsage], includeCount: Bool = true) -> [SetupCheck] {
         guard !readings.isEmpty else {
-            return [
-                SetupCheck(
-                    id: "accounts", title: "no Claude sign-in found", status: .fail,
-                    detail: "sign in to Claude Code once; a second account uses CLAUDE_CONFIG_DIR=~/.claude-<name>",
-                    fix: .openClaudeCode())
-            ]
+            return [.noClaudeSignIn(required: true)]
         }
         var checks: [SetupCheck] = []
         if includeCount {
@@ -217,7 +214,7 @@ public struct SetupDoctor {
             }
             return [
                 SetupCheck(
-                    id: "gh", title: "PR query failed", status: .fail,
+                    id: "gh", title: "PR fetch failed", status: .fail,
                     detail: Shell.summary(error, fallback: "PR fetch failed"), diagnostic: "\(error)", fix: .retry)
             ]
         }
@@ -225,8 +222,8 @@ public struct SetupDoctor {
 
     func slack() -> SetupCheck {
         Config.load().slackConfigured
-            ? SetupCheck(id: "slack", title: "Slack review nudges configured", status: .pass, required: false)
-            : SetupCheck(id: "slack", title: "Slack review nudges", status: .off, detail: "optional", required: false, fix: .openSlackSettings)
+            ? SetupCheck(id: "slack", title: "Slack review asks configured", status: .pass, required: false)
+            : SetupCheck(id: "slack", title: "Slack review asks", status: .off, detail: "optional", required: false, fix: .openSlackSettings)
     }
 
     /// Plain-text report for `--doctor`.
@@ -246,5 +243,14 @@ public struct SetupDoctor {
         let problems = checks.filter(\.blocking).count
         lines.append(problems == 0 ? "all required checks pass" : plural(problems, "problem"))
         return lines.joined(separator: "\n")
+    }
+}
+
+extension SetupCheck {
+    /// No Claude Code sign-in on this Mac. Blocking unless another provider already reads.
+    static func noClaudeSignIn(required: Bool) -> SetupCheck {
+        SetupCheck(
+            id: "accounts", title: "no Claude sign-in found", status: required ? .fail : .off,
+            detail: required ? "run claude and sign in" : "optional · run claude and sign in", required: required, fix: .openClaudeCode())
     }
 }

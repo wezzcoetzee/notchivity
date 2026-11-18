@@ -15,10 +15,11 @@ struct RootView: View {
 
     var body: some View {
         content
-            // Content fades in only after the black shape has finished growing, and vanishes
+            // Content fades in as the black shape finishes growing (100ms in, 100ms fade against
+            // the 220ms ease-out, which is most of the way there by then), and vanishes
             // at once on the way back, so text never sits over a half-sized background.
             // `.id` makes the switch branch a real insertion; a transition on the bare switch never fires.
-            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.12).delay(0.2)), removal: .identity))
+            .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.1).delay(0.1)), removal: .identity))
             .id(geometry.state)
             .foregroundStyle(.white)
             .background(UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius).fill(.black))
@@ -43,9 +44,7 @@ struct RootView: View {
     @ViewBuilder private var menu: some View {
         Button("Refresh Now") { model.refreshAll() }
         if model.peek != nil { Button("Dismiss Peek") { model.dismissPeek() } }
-        Button("Setup Check") {
-            setup.pinned = true; Task { await setup.run() }
-        }
+        Button("Setup Check", action: setup.pin)
         Button("Settings…") { SettingsWindowController.shared.show(model: model) }
         Divider()
         Button("Quit Notchivity") { NSApp.terminate(nil) }
@@ -83,7 +82,7 @@ struct CollapsedView: View {
                 HStack(spacing: 10) {
                     if settings.collapsedUsage {
                         let account = model.underlineAccount
-                        let pct = account.flatMap { account in account.windows.first.flatMap { model.displayPct(account, $0) } }
+                        let pct = account.flatMap { model.displayPct($0, model.leadWindow($0)) }
                         // A reading that failed to refresh or is old greys out rather than posing as live.
                         let failing = account.map(model.isOld) ?? false
                         if let pct {
@@ -92,7 +91,8 @@ struct CollapsedView: View {
                             Text("?").foregroundStyle(Color.dim).accessibilityHidden(true)
                         }
                         Bar(pct: pct, height: 2, old: failing)
-                            .accessibilityLabel("\(model.underlineAccount?.displayLabel ?? "usage") \(pct.map { "\(Int($0)) percent" } ?? "unknown")")
+                            .accessibilityLabel(
+                                "\(model.underlineAccount?.displayLabel ?? "usage") \(pct.map { "\(Int($0)) percent used" } ?? "usage unknown")")
                     } else {
                         Spacer(minLength: 0)
                     }
@@ -110,7 +110,7 @@ struct CollapsedView: View {
         if outstanding > 0 {
             setupLabel.fixedSize()
         } else if model.prError != nil {
-            Dot(color: .warn, size: 5)
+            Dot(color: .warn, size: 7, hollow: true).accessibilityLabel("PR fetch failing")
         } else {
             let mode = indicator ?? settings.indicator
             if mode != .none, model.orderedPRs.isEmpty, model.lastPRsAt != nil {
@@ -124,7 +124,7 @@ struct CollapsedView: View {
                         if action > 0 { Text("\(action)").foregroundStyle(Color.warn) }
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(failing) failing, \(action) need action")
+                    .accessibilityLabel("\(failing) failing, \(action) needs action")
                     .accessibilityHidden(failing + action == 0)
                 case .dots:
                     HStack(spacing: 3) {

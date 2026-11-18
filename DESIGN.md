@@ -104,7 +104,7 @@ The system rejects everything the notch-app category reaches for by reflex: no m
 - Colour appears only as status. Four hues map to four PR categories; two of them double as usage warnings.
 - One system font at five sizes between 10.5 and 13px. Weight and colour carry hierarchy, not size jumps.
 - Hairline rules (1px, #171717) separate rows and sections. No boxes, no borders around groups.
-- Two motions only: the panel shape eases out over 220ms, content fades in over 120ms after a 200ms delay. Content vanishes instantly on collapse.
+- Two motions only: the panel shape eases out over 220ms, content fades in over 100ms after a 100ms delay, landing as the shape finishes. Content vanishes instantly on collapse.
 
 ## 2. Colors: The Instrument Palette
 
@@ -117,17 +117,17 @@ Black panel, white readings, one grey ramp for structure, four alarm lamps and o
 - **Panel Black** (#000000): Every background: notch shape, Settings window, chips. Never tinted.
 - **Dimmed Grey** (#787878): Secondary text: section titles, sub-labels, refs, ages, unselected tabs, header meta. The only grey used for type.
 - **Standby Grey** (#404040): Status dot for a setup check that is switched off.
-- **Stroke Grey** (#333333): 1px outlines on segmented controls, fields and chips in Settings. Brightens to #808080 while a chip is being dragged.
+- **Stroke Grey** (#333333): 1px outlines on segmented controls, fields and chips in Settings. Brightens to #808080 while a chip is being dragged. Also the fill of a selected PR row that has keyboard or hover focus.
 - **Track Grey** (#212121): Empty portion of usage bars and the Settings tab-bar rule.
 - **Rule Grey** (#171717): Hairline separators between rows and above link lines.
 - **Hover Grey** (#141414): Row background on hover. The only hover treatment in the notch.
 
 ### Tertiary: The Lamps
 - **Fault Red** (#F7524A): Failing CI, conflicts, usage at 90% or above, a failing required setup check. In the checklist, passing and switched-off rows dim their titles so only rows that need a look stay white. With Caution Amber, the only colours that may appear in the collapsed tab as counts.
-- **Caution Amber** (#D19921): Needs action (changes requested, review comments), usage 75 to 89%, the "N to set up" label, optional checks needing attention, non-fatal fetch errors.
-- **Clear Green** (#40BA4F): Ready to merge, approved. Also the 5px dot meaning "nothing open, all fetched". A passing check ("CI ✓") is the absence of an alarm and stays Dimmed Grey.
-- **Standby Blue** (#59A6FF): Awaiting review. Doubles as the link colour ("view all", "close", fix buttons).
-- **Notice Violet** (#BD8CFF): Informational events only (limit reset, merged). Never used for PR state.
+- **Caution Amber** (#D19921): Needs action (changes requested, review comments), usage 75 to 89%, the "N to set up" label, optional checks needing attention in the setup checklist. A failed fetch is not amber in the dashboard: it is counted in the header in white. The one exception is the collapsed tab, where a PR fetch error is a hollow amber ring, distinct from the filled lamps.
+- **Clear Green** (#40BA4F): Ready to merge, approved. Also the 5px dot meaning "nothing open, all fetched". A passing CI is the absence of an alarm and shows nothing.
+- **Standby Blue** (#59A6FF): Awaiting review, as the dot and as the "awaiting review" flag. Doubles as the link colour ("view all", "close", "setup", "settings", fix buttons).
+- **Notice Violet** (#BD8CFF): Informational events only (usage reset, merged, the one-time "ready" peek). Never used for PR state.
 
 ### Named Rules
 **The Alarm Lamp Rule.** A colour on screen must mean one of: failing, needs action, ready, awaiting review, or notice. Any colour used for decoration, branding, or emphasis is forbidden.
@@ -168,29 +168,39 @@ Flat. There are no shadows anywhere. Depth comes from three things: the black pa
 ## 5. Components
 
 ### Notch Shape
-The signature component. A black `UnevenRoundedRectangle` with only the bottom corners rounded: 12px collapsed, 22px expanded or peeking. Width is the hardware notch when collapsed, 440px for a peek, 720px expanded. Shape animates with ease-out over 220ms; content fades in over 120ms after a 200ms delay and is removed instantly on the way back.
+The signature component. A black `UnevenRoundedRectangle` with only the bottom corners rounded: 12px collapsed, 22px expanded or peeking. Width is the hardware notch when collapsed, 440px for a peek, 720px expanded. Shape animates with ease-out over 220ms; content fades in over 100ms after a 100ms delay and is removed instantly on the way back.
 
 ### Collapsed Tab (screens without a notch)
 - **Content:** the chosen account’s first available window percentage in Detail size, a 2px usage bar, and either counts (Fault Red failing, Caution Amber needs action) or up to eight 5px category dots. In either mode a fetched, empty list shows one 5px Clear Green dot.
-- **Errors:** a PR fetch error replaces the indicator with a 5px Caution Amber dot; a usage reading that failed to refresh or is over 15 minutes old shows its percentage and underline in Dimmed Grey (red stays red), and "?" once its window has reset.
+- **Errors:** a PR fetch error replaces the indicator with a 7px hollow Caution Amber ring (1.5px stroke), so a fault never reads as a needs-action lamp; a usage reading that failed to refresh or is over 15 minutes old shows its percentage and underline in Dimmed Grey (red stays red), and "?" once its window has reset.
 - **Rule:** on a hardware notch it renders nothing. Only "N to set up" in Caution Amber may override that silence.
 
 ### PR Row
 - **Shape:** 43px tall, full width, 5px vertical padding, 1px Rule Grey hairline on top.
-- **Content:** 8px category dot, Body Strong title over Detail ref, right-aligned Detail flags joined by " · " in Dimmed Grey, optional age. At most two flags sit on the right; the rest follow the ref ("docs#14 · draft"). An amber dot always has an amber flag saying why ("reviewed", or "draft" on an approved draft).
-- **Hover:** background to Hover Grey, reaching 8px past the text column so text never touches the fill edge. Click opens the PR; right-click gives "Open on GitHub", "Copy URL" and, with Slack set up, "Ask for Review in Slack" and "Select for One Slack Ask" (context menus use macOS title case).
-- **Selected:** background to Track Grey (Cmd-click toggles, only with Slack set up). A Link line under the list reads "ask for review in Slack · 3 selected · clear"; the Slack result shows above it for a few seconds under one shared hairline, Caution Amber on failure, and a failure keeps the selection for a retry.
+- **Content:** 8px category dot, Body Strong title over the Detail ref (middle-truncated, so a long repo keeps its "#number"), right-aligned Detail flags joined by " · " in Dimmed Grey, optional age. At most two flags sit on the right and the rest are counted in Dimmed Grey ("+3"); the tooltip lists every flag. An amber dot always has an amber flag saying why ("2 unresolved", "not approved", or "draft" on an approved draft). A blue dot leads with a Standby Blue "awaiting review" unless the PR is a draft or already approved (then blue only means CI is running, which its flag says).
+- **Stale list:** when a refresh fails with PRs on screen, the section title row adds "· as of 14m ago · retry" in Detail Dimmed Grey with the fix as a link ("copy gh auth login" when signed out). An empty list reads "GitHub unreachable · retry".
+- **First hovers:** a Detail Dimmed Grey line under the list names the ways in a hover never shows ("⌘-click select · right-click for more · ⌃⌥N for the keyboard"). Each part retires the first time that gesture is used; the line stops after 20 hover opens regardless. Keyboard opens never show it.
+- **"view all":** up to 12 rows, or 60% of the panel's screen if less, then the list scrolls with half a row showing.
+- **Hover and keyboard focus:** one highlight shared by the pointer and the arrow keys: background to Hover Grey, reaching 8px past the text column so text never touches the fill edge. Click or Return opens the PR; right-click gives "Open on GitHub", "Copy URL" and, with Slack set up, "Ask for Review in Slack" and "Select for One Slack Ask" (context menus use macOS title case). Focus from the arrow keys adds a 2px white bar on the fill's leading edge, because Hover Grey alone is about 1.2:1 on black. It is the one side edge in the system: white, never a lamp colour, and only while the keyboard drives. The system tooltip carries the full title and the gestures ("click to open · cmd-click to select · right-click for more").
+- **Selected:** background to Track Grey (Stroke Grey when it also has focus) and a 1.5px white ring around the dot, so selection never rests on fill alone. Cmd-click or Space toggles, only with Slack set up. A Link line under the list reads "ask for review in Slack · 3 selected · clear". The Slack result shows above it under one shared hairline: success in Dimmed Grey for a few seconds, failure in white with its fix link until a retry or "clear". Failed PRs stay selected, so the line below is the retry.
 
 ### Usage Row
 
-Claude and Codex show session and weekly rows. Grok Build shows only its weekly or monthly allowance, with the account label on that row. Disk readings older than 15 minutes show their age. An expired Grok period shows unknown usage until a new billing snapshot arrives.
+One block per account, sorted most urgent first: lead window at 90% or more, then 75% or more, then failed readings, then the rest in discovery order. The collapsed tab and Settings keep discovery order.
 
-- **Layout:** 52px label column (one line, tail-truncated), capsule bar, 40px right-aligned percentage with monospaced digits, toned like the bar. An unknown percentage reads as a dim "?".
-- **Bar:** 5px capsule, Track Grey behind, fill white under 75%, Caution Amber to 89%, Fault Red from 90%. Minimum fill width equals bar height.
-- **Sub-line:** Detail size in Dimmed Grey, indented 60px ("session · resets 2h 10m", "week · resets Thu 09:00" inside the coming week, "month · resets 26 Nov" further out, "resets now" once passed). Errors use the same line in Caution Amber, in a few words ("token expired"; the full sentence is the tooltip), with the setup fix as a Standby Blue inline link on the line below when there is one ("open Claude Code"). An account with no reading at all collapses to one row with that line under it. A reading that failed to refresh or is over 15 minutes old greys its percentage and bar fill (red stays red), and once its window has reset it reads "?".
+- **Name line:** Body name, full column width, tail-truncated only if it must; the lead percentage right-aligned with monospaced digits, toned like the lead bar, never truncated. At 75% or more the lead's reset joins the name line in white Body regular ("Work · resets 47m"), since it is then the answer, but only if both fit whole; otherwise the reset stays complete on the sub-line. An unknown percentage reads as a dim "?". Two accounts with one name add "· 1 of 2" in Detail Dimmed Grey.
+- **Bars:** full column width, 3px under the name. The lead window gets the 5px capsule; each other window is a 2px line 3px beneath it, Dimmed Grey until 75%, then Caution Amber or Fault Red. The session leads unless another window has reached 75% and is fuller; the collapsed tab uses the same rule.
+- **Bar fill:** Track Grey behind, lead fill white under 75%, Caution Amber to 89%, Fault Red from 90%. Minimum fill width equals bar height.
+- **Sub-line:** Detail, Dimmed Grey, flush with the name: the lead's reset, then the other windows' readings ("resets 2h 14m · week 61%"). A non-session lead names itself ("month · resets 7 Dec"). A secondary reading at 75% or more takes its lamp colour in the line.
+- **Faults and age:** one more Dimmed Grey line ("as of 3h ago"); a failed fetch carries its fix inline as a link ("token expired · open Claude Code"); the bars and percentage grey (red stays red) and read "?" once the window has reset. An account with no reading at all has no bars, so an empty track never reads as 0%: just the name, "?" and the reason. The header still counts faults for the glance.
+- **Rhythm:** 6px above and below each block, so the first name sits level with the first PR title.
+- **Tooltip and VoiceOver:** every window with "% used" and its reset, and the provider after a renamed account ("Work (Claude)").
 
 ### Header
-Notch-height row in Detail, Dimmed Grey: the GitHub login on the left; on the right a PR error in Caution Amber when stale PRs are on screen with its fix link, then "updated Ns ago" ("usage updated…" while PRs have never loaded), then the gear. The gear is the one icon in the notch: functional, 12pt glyph in a 24pt hit target.
+Notch-height row in Detail, Dimmed Grey. The left slot, the first one seen, carries state, not identity: the worst thing right now in its lamp colour (a failing PR "CI failed · web#318", else usage at 90% or more "session at 96% · Claude", else a PR needing action), and nothing when calm. The GitHub login is that slot's tooltip. On the right: freshness ("updated Ns ago", or "usage updated…" while PRs have never loaded), replaced for 2 seconds by a keyboard confirmation ("opened web#318"); then the faults in white with a "fix" link, naming a lone fault ("token expired · fix") and counting several ("2 issues · fix"), or a plain "setup" link; then "settings". A fault takes the freshness text's place rather than adding to it. The header shares its band with the hardware notch, so each side is capped at its half of the panel minus the notch width; the fault text truncates before the links. Both "fix" and "setup" open the setup checklist over the dashboard. Each link has a 24px-tall hit area around its 11px text. The notch has no icons: every action is a word.
+
+### Keyboard Session
+⌃⌥N opens the panel with the keyboard. The focused row carries the white leading edge (see PR Row). Under the list, one Detail Dimmed Grey line lists the keys that do something right now ("↑↓ ↩ open · space select · a ask · r refresh · s setup · v view all · ⌘, settings · esc"): Slack keys only with Slack set up, "c clear" only with a selection, "v" only when the list overflows. The pointer never sees it. "a" waits 3 seconds on a Link line ("asking for review of 2 PRs · undo") before posting; Esc or "undo" cancels, and Esc closes the panel only when nothing is pending. "m" opens the highlighted PR's menu (the same actions as its right-click), "f" applies the first fault's fix. VoiceOver hears peeks, a pending ask, its result, and faults appearing or clearing while the panel is open.
 
 ### Section Title
 Label style in Dimmed Grey with 6px below. Optional count beside it, also Label style in Dimmed Grey, shown only when it is a real non-zero reading.
@@ -199,11 +209,14 @@ Label style in Dimmed Grey with 6px below. Optional count beside it, also Label 
 Standby Blue Detail text with 8px top padding and a Rule Grey hairline above. Used for "view all", "show less" and the selection line. The same blue without the hairline marks inline links ("close", setup fixes). Never underlined, never a button chrome.
 
 ### Peek
-440px wide, 14px status dot in the event tone, Title headline over Detail Dimmed Grey line. Sits below the notch height plus 6px. Click opens the event URL and dismisses the peek. PR headlines lead with the ref ("web#318 CI failed"). Three or more queued events become one peek: the most urgent headline, then "+N more · next headline".
+440px wide, 14px status dot in the event tone, Title headline over Detail Dimmed Grey line. Sits below the notch height plus 6px. Click opens the event URL and dismisses the peek. Headlines lead with what happened, then the subject ("CI failed · web#318", "session at 88% · Work"), so truncation cuts the subject, never the news. Three or more queued events become one peek: the most urgent headline plus "· 3 more", and the rest counted by kind as the detail ("approved · new comments · merged"). The first time setup ever passes, a single Notice Violet peek says "ready · hover the notch or ⌃⌥N".
+
+### Setup Checklist
+Same width and 43px rows as the dashboard. Required checks that need a look first, failing rows on top. Passing checks, required and optional, fold into one dim "N passed" row with a "show" link. Optional checks that need a look follow under one "OPTIONAL" Section Title, with the "optional ·" prefix dropped from their details and their fix links in Dimmed Grey until hovered, so the required fixes lead the eye. Passing and switched-off titles dim; only rows that need a look stay white. The header reads "N to set up" in Caution Amber with "skip for now" (or "close" once nothing required fails). From the keyboard, ↑↓ moves the same white-edged highlight as PR rows through the rows, Return applies the row's fix and Esc goes back; "↑↓ move · ↩ fix · esc back" shows once the arrows are in use.
 
 ### Settings Controls
 - **Tabs:** Body text, white when selected, Dimmed Grey otherwise, 6px vertical padding, Track Grey rule beneath the bar.
-- **Rows:** label left, control right, 9px vertical padding, Rule Grey hairline beneath.
+- **Rows:** label left, control right, at least 43px tall like a PR row (8px vertical padding), Rule Grey hairline beneath. Setup checklist rows share the same 43px minimum.
 - **Segmented control:** 5px radius, Stroke Grey 1px outline, options 3px by 9px padding; selected option is white on black.
 - **Fields and chips:** 5px radius, Stroke Grey outline, 4px by 9px padding. Text fields are a chip holding right-aligned Body text; the CLI proxy sheet's full-width fields use 8px padding. Dragged chip outline brightens to #808080.
 - **Menu picker:** a chip holding the current value and a Dimmed Grey up-down chevron. Used where the options come from data (which account), so a segmented control would overflow.
@@ -220,7 +233,7 @@ Standby Blue Detail text with 8px top padding and a Rule Grey hairline above. Us
 - **Do** keep type between 10.5 and 13px, hierarchy through weight and Dimmed Grey.
 - **Do** use monospaced digits for anything that ticks.
 - **Do** write copy in lowercase, terse and factual: "nothing open", "resets 2h 10m".
-- **Do** animate only the shape (220ms ease-out) and a delayed content fade (120ms). Remove content instantly on collapse.
+- **Do** animate only the shape (220ms ease-out) and a delayed content fade (100ms after 100ms). Remove content instantly on collapse.
 - **Do** put actions where the data is: click a row, right-click for more. Settings is the only separate surface.
 
 ### Don't:

@@ -144,7 +144,9 @@ struct SettingsView: View {
             Spacer()
             control().disabled(disabled)
         }
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
+        // The dashboard's 43pt row, so Settings and the notch share one rhythm.
+        .frame(minHeight: ExpandedView.rowHeight)
         .overlay(alignment: .bottom) { if rule { Rectangle().fill(Color.rule).frame(height: 1) } }
     }
 
@@ -247,7 +249,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             if inApplications || !Notifier.shared.available {
                 toggle(
-                    "Launch at login", detail: inApplications ? nil : "needs the .app bundle from make-app.sh",
+                    "Launch at login", detail: inApplications ? nil : "needs the app in /Applications",
                     Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }), disabled: !inApplications)
             } else {
                 // The same one-click fix the setup checklist offers.
@@ -255,10 +257,12 @@ struct SettingsView: View {
                     FixLink(fix: .moveToApplications, setup: setup)
                 }
             }
-            section("Slack review nudges")
+            section("Slack review asks")
             Group {
-                field("Channel ID", placeholder: "C0123456789", slackField(\.slackChannel))
-                field("Bot token", detail: "optional · falls back to claude -p", placeholder: "xoxb-…", slackField(\.slackBotToken), secure: true)
+                field("Channel ID", detail: "in channel details › About", placeholder: "C0123456789", slackField(\.slackChannel))
+                field(
+                    "Bot token", detail: "optional · chat:write; else Claude's Slack MCP", placeholder: "xoxb-…",
+                    slackField(\.slackBotToken), secure: true)
             }
             .onSubmit(saveSlack)
             if slackSaveFailed {
@@ -336,10 +340,10 @@ struct SettingsView: View {
 
     private var usage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            row("Quota source", detail: proxyURL.isEmpty ? "local account discovery" : "CLI proxy · \(URL(string: proxyURL)?.host ?? proxyURL)") {
+            row("Quota source", detail: proxyURL.isEmpty ? "accounts on this Mac" : "CLI proxy · \(URL(string: proxyURL)?.host ?? proxyURL)") {
                 link("configure…") { showingProxyConnection = true }
             }
-            segmented("Poll interval", $settings.usageInterval, options: [120.0, 180.0, 300.0, 600.0].map { ($0, "\(Int($0 / 60)) min") })
+            segmented("Refresh interval", $settings.usageInterval, options: [120.0, 180.0, 300.0, 600.0].map { ($0, "\(Int($0 / 60)) min") })
             row("Notify when usage crosses", detail: "percentages, applies to every usage window", rule: false) { EmptyView() }
             HStack(spacing: 6) {
                 ForEach(settings.thresholds, id: \.self) { value in
@@ -373,8 +377,8 @@ struct SettingsView: View {
                 .disabled(pendingThreshold == nil)
                 .accessibilityLabel("Add threshold")
             }
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: ExpandedView.rowHeight, alignment: .leading)
             .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
             // Last, like "In the tab" on Displays, so the rows above do not read as part of it.
             if !model.accounts.isEmpty {
@@ -429,10 +433,10 @@ struct SettingsView: View {
                 disabled: !settings.peekEnabled)
             section("Notification Center")
             // When unavailable, the reason rides on the first row rather than a subtitle under the heading.
-            ForEach(Event.Kind.allCases, id: \.self) { kind in
+            ForEach(Event.Kind.configurable, id: \.self) { kind in
                 toggle(
                     kind.title,
-                    detail: !Notifier.shared.available && kind == Event.Kind.allCases.first ? "needs the .app bundle from make-app.sh" : nil,
+                    detail: !Notifier.shared.available && kind == Event.Kind.configurable.first ? "needs the .app bundle from make-app.sh" : nil,
                     Binding(get: { settings.notifies(kind) }, set: { settings.setNotifies(kind, $0) }),
                     disabled: !Notifier.shared.available)
             }
@@ -449,6 +453,9 @@ struct SettingsView: View {
     private var displays: some View {
         VStack(alignment: .leading, spacing: 0) {
             segmented("Hover delay", detail: "before the panel expands", $settings.hoverDelayMs, options: [0, 120, 250, 500].map { ($0, "\($0) ms") })
+            toggle(
+                "Open with ⌃⌥N", detail: "from any app; the panel lists its keys while you use them",
+                $settings.keyboardShortcut)
             toggle("Show on external displays too", detail: "screens without a notch get a black tab at the top centre", $settings.externalDisplays)
             section("In the tab")
             toggle("Usage", detail: "usage % and underline for one account", $settings.collapsedUsage, disabled: !tabShown)
@@ -503,8 +510,8 @@ struct CategoryOrderView: View {
         .onPreferenceChange(ChipWidths.self) { widths = $0 }
         .contentShape(Rectangle())
         .gesture(gesture)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: ExpandedView.rowHeight, alignment: .leading)
         .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
     }
 

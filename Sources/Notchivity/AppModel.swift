@@ -5,19 +5,28 @@ import NotchivityKit
 /// peek queue and Notification Center.
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var accounts: [AccountUsage] = []
+    @Published private(set) var accounts: [AccountUsage] = [] { didSet { announceFaultChange() } }
     @Published private(set) var prs: [PullRequest] = []
     @Published private(set) var me = ""
-    @Published private(set) var prFailure: Error?
+    @Published private(set) var prFailure: Error? { didSet { announceFaultChange() } }
     @Published private(set) var lastUsageAt: Date?
     @Published private(set) var lastPRsAt: Date?
-    @Published private(set) var peek: Event?
+    @Published private(set) var peek: Event? {
+        didSet { if let peek, peek != oldValue { announce(peek.headline) } }
+    }
     /// The transient line under the PR list after a Slack ask.
     @Published private(set) var slackStatus: SlackStatus?
     /// "view all" toggled in the expanded PR list; reset when the panel collapses.
     @Published var showAllPRs = false
     /// PR ids picked with Cmd-click or "Select" for one batched Slack ask; reset when the panel collapses.
     @Published var selectedPRs: Set<String> = []
+    /// The highlighted row: set by hover and by the arrow keys, so both share one highlight.
+    @Published private(set) var focusedPR: String?
+    /// The row the arrow keys last moved to, for a scrolling list to bring into view. Hover
+    /// leaves it alone so the list never scrolls under the pointer.
+    @Published private(set) var scrollTarget: String?
+    /// The highlight came from the arrow keys, so the row also shows the keyboard focus edge.
+    @Published private(set) var focusFromKeyboard = false
     /// Bumped on a timer so countdowns and "updated Ns ago" re-render.
     @Published private(set) var now = Date()
 
@@ -39,6 +48,7 @@ final class AppModel: ObservableObject {
         let text: String
         var failed = false
         var posting = false
+        var fix: SetupCheck.Fix?
     }
 
     func start() {
@@ -53,6 +63,7 @@ final class AppModel: ObservableObject {
         }
         // A fix (open Claude Code, retry) earns a fresh round of quick retries to pick it up.
         setup.fixApplied = { [weak self] in self?.transientStreak = 0 }
+        setup.firstPassed = { [weak self] in self?.announceReady() }
         setup.refresh = { [weak self] in
             guard let self else { return }
             async let usage: Void = refreshUsage()
@@ -236,6 +247,16 @@ final class AppModel: ObservableObject {
         showNextPeek()
     }
 
+    /// The one peek that is not a change: the first time setup ever passes, say the notch is
+    /// live and how to open it, since a passing setup otherwise leaves it silent.
+    private func announceReady() {
+        guard !UserDefaults.standard.bool(forKey: "announcedReady") else { return }
+        UserDefaults.standard.set(true, forKey: "announcedReady")
+        let how = settings.keyboardShortcut ? "hover the notch or ⌃⌥N" : "hover the notch"
+        peekQueue.append(Event(kind: .welcome, headline: "ready · \(how)", tone: .info))
+        showNextPeek()
+    }
+
     /// A burst (a CI storm, waking from sleep) becomes one summary peek instead of a queue
     /// of three-second peeks that would hold the notch for half a minute.
     private func showNextPeek() {
@@ -290,11 +311,143 @@ final class AppModel: ObservableObject {
         lastPRsAt = prFailure == nil ? lastUsageAt : nil
     }
 
+    /// Screenshot aid: PRs still on screen from a fetch this long ago, after a failed refresh.
+    func loadDemoStalePRs(fetchedAgo seconds: TimeInterval, failure: Error) {
+        prFailure = failure
+        lastPRsAt = now.addingTimeInterval(-seconds)
+    }
+
+    /// Screenshot aid: the first-hover gesture line, without spending the real count.
+    func loadDemoGestureHint() { gestureHint = true }
+
+    /// Screenshot aid: a login other than the sample one, for long-text states.
+    func loadDemoLogin(_ login: String) { me = login }
+
     /// Screenshot aid: the transient Slack line under the dashboard.
-    func loadDemoStatus(slack: String, failed: Bool = false) { slackStatus = SlackStatus(text: slack, failed: failed) }
+    func loadDemoStatus(slack: String, failed: Bool = false, fix: SetupCheck.Fix? = nil) {
+        slackStatus = SlackStatus(text: slack, failed: failed, fix: fix)
+    }
 
     func toggleSelection(_ pr: PullRequest) {
         if selectedPRs.remove(pr.id) == nil { selectedPRs.insert(pr.id) }
+    }
+
+    /// Dropping the selection also drops a failure about it, which has nothing left to retry.
+    func clearSelection() {
+        selectedPRs = []
+        if slackStatus?.failed == true { slackStatus = nil }
+    }
+
+    /// "show less": the rows past the fold are gone, so selection and focus drop them too.
+    func showLess() {
+        showAllPRs = false
+        let visible = Set(orderedPRs.prefix(settings.rowsBeforeOverflow).map(\.id))
+        selectedPRs.formIntersection(visible)
+        if let focusedPR, !visible.contains(focusedPR) { self.focusedPR = nil }
+    }
+
+    /// Bumped on every close, so an ask that finishes after the panel closed can tell.
+    private var panelSession = 0
+
+    /// Resets everything the expanded panel holds only while it is open.
+    func panelClosed() {
+        panelSession += 1
+        showAllPRs = false
+        focusedPR = nil
+        scrollTarget = nil
+        focusFromKeyboard = false
+        gestureHint = false
+        panelOpen = false
+        clearSelection()
+    }
+
+    // MARK: - Keyboard
+
+    func hoverFocus(_ pr: PullRequest, _ inside: Bool) {
+        if inside {
+            focusedPR = pr.id
+            focusFromKeyboard = false
+        } else if focusedPR == pr.id {
+            focusedPR = nil
+        }
+    }
+
+    /// Moves the highlight through the list, opening "view all" when it walks past the fold.
+    func moveFocus(by step: Int) {
+        let ids = orderedPRs.map(\.id)
+        guard !ids.isEmpty else { return }
+        let next = focusedPR.flatMap(ids.firstIndex(of:)).map { min(max($0 + step, 0), ids.count - 1) } ?? 0
+        if settings.overflow == .viewAll, next >= settings.rowsBeforeOverflow { showAllPRs = true }
+        focusedPR = ids[next]
+        scrollTarget = ids[next]
+        focusFromKeyboard = true
+    }
+
+    private var focused: PullRequest? { orderedPRs.first { $0.id == focusedPR } }
+
+    /// Opens the PR in the background, so the browser does not take focus and the panel stays
+    /// up for the next one.
+    func openFocused() {
+        guard let pr = focused else { return }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        NSWorkspace.shared.open(pr.url, configuration: configuration)
+        // The browser stays behind, so say it worked.
+        flash("opened \(pr.shortRef)")
+    }
+
+    /// "a": asks for review of the selection, or of the highlighted PR when nothing is selected.
+    /// A key press is easier to slip than a click, so it posts only after `askDelay` with an
+    /// "undo" on screen; Esc or "undo" cancels it.
+    func askFromKeyboard() {
+        guard slackConfigured, pendingAsk == nil, slackStatus?.posting != true else { return }
+        let batch = selectedPRs.isEmpty ? focused.map { [$0] } ?? [] : orderedPRs.filter { selectedPRs.contains($0.id) }
+        guard !batch.isEmpty else { return }
+        pendingAsk = batch
+        announce("asking for review of \(batch.count == 1 ? batch[0].shortRef : plural(batch.count, "PR")) in 3 seconds, escape to undo")
+        pendingAskTask = Task {
+            try? await Task.sleep(for: Self.askDelay)
+            guard !Task.isCancelled else { return }
+            pendingAsk = nil
+            askForReview(batch)
+        }
+    }
+
+    static let askDelay: Duration = .seconds(3)
+    /// A keyboard ask waiting out its undo window.
+    @Published private(set) var pendingAsk: [PullRequest]?
+    private var pendingAskTask: Task<Void, Never>?
+
+    /// Cancels a keyboard ask still in its undo window. False when there was none.
+    @discardableResult func undoAsk() -> Bool {
+        guard pendingAsk != nil else { return false }
+        pendingAskTask?.cancel()
+        pendingAsk = nil
+        announce("ask cancelled")
+        return true
+    }
+
+    /// "v": "view all" or "show less", whichever the list offers.
+    func toggleViewAll() {
+        if showAllPRs { showLess() } else if orderedPRs.count > settings.rowsBeforeOverflow { showAllPRs = true }
+    }
+
+    /// A few words in the header confirming a keyboard action ("opened web#318"), then gone.
+    @Published private(set) var notice: String?
+    private var noticeClear: Task<Void, Never>?
+
+    private func flash(_ text: String) {
+        notice = text
+        noticeClear?.cancel()
+        noticeClear = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            notice = nil
+        }
+    }
+
+    func toggleFocusedSelection() {
+        if slackConfigured, let pr = focused { toggleSelection(pr) }
     }
 
     func askForReview(_ pr: PullRequest) { askForReview([pr]) }
@@ -310,21 +463,31 @@ final class AppModel: ObservableObject {
         let what = batch.count == 1 ? first.shortRef : plural(batch.count, "PR")
         slackStatusClear?.cancel()
         slackStatus = SlackStatus(text: "posting \(what) to Slack…", posting: true)
+        let session = panelSession
         Task {
             do {
                 let outcome = try await SlackNudger().askForReview(batch)
-                showSlackStatus(SlackStatus(text: outcome == .nudged ? "nudged \(what) in its thread" : "posted \(what) to Slack"))
+                showSlackStatus(SlackStatus(text: outcome == .nudged ? "reminded \(what) in its thread" : "posted \(what) to Slack"))
                 selectedPRs.subtract(batch.map(\.id))
             } catch {
-                showSlackStatus(SlackStatus(text: SlackNudger.failureSummary(error), failed: true))
+                // Selected, so the selection line under the failure is the retry, even for a
+                // single ask from the context menu.
+                // Only while the panel that asked is still open; a closed one was reset on purpose.
+                let open = session == panelSession
+                if open { selectedPRs.formUnion(batch.map(\.id)) }
+                showSlackStatus(
+                    SlackStatus(text: SlackNudger.failureSummary(error), failed: true, fix: SlackNudger.failureFix(error)), persist: open)
             }
         }
     }
 
-    private func showSlackStatus(_ status: SlackStatus) {
+    /// Fades after a few seconds unless `persist`: a failure stays until a retry, "clear" or collapse.
+    private func showSlackStatus(_ status: SlackStatus, persist: Bool = false) {
         slackStatus = status
+        announce(status.text)
+        guard !persist else { return }
         slackStatusClear = Task {
-            try? await Task.sleep(for: .seconds(status.failed ? 8 : 5))
+            try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
             slackStatus = nil
         }
@@ -337,10 +500,145 @@ final class AppModel: ObservableObject {
     /// One lowercase line for the PR column when the last fetch failed.
     var prError: String? { prFailure.map { Shell.summary($0, fallback: "PR fetch failed") } }
 
-    /// The setup fix for the PR error, shown under it like a usage error's fix.
+    /// The window an account leads with in the panel and the collapsed tab: the first (session)
+    /// unless another has reached amber and is fuller, since that is the limit about to bite.
+    func leadWindow(_ account: AccountUsage) -> AccountUsage.Window {
+        let windows = account.windows
+        let first = displayPct(account, windows[0]) ?? 0
+        return windows.dropFirst().first { (displayPct(account, $0) ?? 0) >= 75 && (displayPct(account, $0) ?? 0) > first } ?? windows[0]
+    }
+
+    /// The usage column's order: 90% or more first, then 75% or more, then failed readings,
+    /// then the rest as discovered, so the account about to bite is on top. The collapsed tab
+    /// and Settings keep discovery order.
+    var panelAccounts: [AccountUsage] {
+        func rank(_ account: AccountUsage) -> Int {
+            let pct = displayPct(account, leadWindow(account)) ?? 0
+            return pct >= 90 ? 0 : pct >= 75 ? 1 : usageWarning(account) != nil ? 2 : 3
+        }
+        return accounts.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
+    }
+
+    /// "2 of 2" when several accounts share a name, so identical rows can be told apart.
+    func twin(_ account: AccountUsage) -> String? {
+        let same = accounts.filter { $0.displayLabel == account.displayLabel }
+        guard same.count > 1, let index = same.firstIndex(where: { $0.id == account.id }) else { return nil }
+        return "\(index + 1) of \(same.count)"
+    }
+
+    /// The fix for the PR fetch error, shown where the error is read.
     var prFix: SetupCheck.Fix? {
         guard let prError else { return nil }
         return prError == Shell.signedOut ? .copy("gh auth login") : .retry
+    }
+
+    /// The ways in that a hover never shows. Each is taught on hover opens until it is first
+    /// used, then never again; `gestureHintOpens` caps the teaching for gestures never used.
+    enum Gesture: String, CaseIterable { case cmdClick, rightClick, keyboard }
+    static let gestureHintOpens = 20
+    @Published private(set) var gestureHint = false
+
+    func noteGesture(_ gesture: Gesture) { UserDefaults.standard.set(true, forKey: "usedGesture.\(gesture.rawValue)") }
+
+    /// The gestures still worth teaching: unused, and available (cmd-click needs Slack, the
+    /// shortcut needs the setting).
+    var unlearnedGestures: [Gesture] {
+        Gesture.allCases.filter { gesture in
+            guard !UserDefaults.standard.bool(forKey: "usedGesture.\(gesture.rawValue)") else { return false }
+            switch gesture {
+            case .cmdClick: return slackConfigured
+            case .keyboard: return settings.keyboardShortcut
+            case .rightClick: return true
+            }
+        }
+    }
+
+    /// Whether the expanded panel is up, so fault changes are announced only while it is.
+    private var panelOpen = false
+
+    func panelOpened(byKeyboard: Bool) {
+        panelOpen = true
+        if byKeyboard { noteGesture(.keyboard) }
+        let shown = UserDefaults.standard.integer(forKey: "gestureHintOpens")
+        gestureHint = !byKeyboard && shown < Self.gestureHintOpens && !unlearnedGestures.isEmpty
+        if gestureHint { UserDefaults.standard.set(shown + 1, forKey: "gestureHintOpens") }
+    }
+
+    /// The worst thing right now, for the header's left slot: a failing PR, then usage at 90% or
+    /// more, then a PR needing action. Nil when calm, and the slot is then empty.
+    var worstItem: (text: String, tone: Tone)? {
+        if let pr = orderedPRs.first(where: { $0.category == .failing }), let flag = pr.flags.first {
+            return ("\(flag.text) · \(pr.shortRef)", .bad)
+        }
+        for account in accounts {
+            let window = leadWindow(account)
+            if let pct = displayPct(account, window), pct >= 90 {
+                return ("\(window.rawValue) at \(Int(pct))% · \(account.displayLabel)", .bad)
+            }
+        }
+        if let pr = orderedPRs.first(where: { $0.category == .needsAction }), let flag = pr.flags.first {
+            return ("\(flag.text) · \(pr.shortRef)", .warn)
+        }
+        return nil
+    }
+
+    /// "f": the fix for the first fault, the same one its inline link offers.
+    var firstFix: SetupCheck.Fix? {
+        prFix ?? accounts.first { usageWarning($0) != nil && $0.fix != nil }?.fix
+    }
+
+    /// One PR's menu, shared by the row's right-click and the "m" key; nil is a divider.
+    func menu(for pr: PullRequest) -> [(title: String, action: () -> Void)?] {
+        var items: [(title: String, action: () -> Void)?] = [
+            ("Open on GitHub", { NSWorkspace.shared.open(pr.url) }),
+            (
+                "Copy URL",
+                {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(pr.url.absoluteString, forType: .string)
+                }
+            ),
+        ]
+        if slackConfigured {
+            items += [
+                nil, ("Ask for Review in Slack", { [weak self] in self?.askForReview(pr) }),
+                (selectedPRs.contains(pr.id) ? "Remove from Slack Ask" : "Select for Slack Ask", { [weak self] in self?.toggleSelection(pr) }),
+            ]
+        }
+        return items
+    }
+
+    var focusedMenu: [(title: String, action: () -> Void)?]? { focused.map(menu(for:)) }
+
+    /// Speaks a change VoiceOver would otherwise miss: a peek, a pending ask, its result, a fault.
+    func announce(_ text: String) {
+        NSAccessibility.post(
+            element: NSApp as Any, notification: .announcementRequested,
+            userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    }
+
+    private var announcedFaults: String?
+
+    /// A fault appearing or clearing is announced while the panel is open; in the background it
+    /// already has its peek.
+    private func announceFaultChange() {
+        let faults = faultSummary
+        guard faults != announcedFaults else { return }
+        announcedFaults = faults
+        guard panelOpen else { return }
+        announce(faults.map { $0 + (firstFix == nil ? "" : ", f to fix") } ?? "all clear")
+    }
+
+    /// The header's fault text, one per failing source: the fault itself when there is just one
+    /// ("token expired"), so "fix" says what it fixes, else a count ("2 issues"). Their fixes live
+    /// in the setup checklist that "fix" opens.
+    var faultSummary: String? {
+        let faults = [prError].compactMap { $0 } + accounts.compactMap(usageWarning)
+        switch faults.count {
+        case 0: return nil
+        case 1: return faults[0]
+        default: return plural(faults.count, "issue")
+        }
     }
 
     /// How old a disk-read reading is, for sources that only move when their tool runs.

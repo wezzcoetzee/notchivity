@@ -4,7 +4,7 @@ import UserNotifications
 
 /// Runs the setup checklist on launch and every few seconds while it is on screen.
 /// The expanded panel shows the checklist instead of the dashboard until every required
-/// check has passed once; later failures surface inline on the dashboard instead. The
+/// check has passed once; later failures are counted in the dashboard header instead. The
 /// right-click menu can bring the checklist back any time.
 @MainActor
 final class SetupModel: ObservableObject {
@@ -17,7 +17,7 @@ final class SetupModel: ObservableObject {
     /// Every required check passed at least once, so the dashboard owns the panel from here on.
     @Published private(set) var everPassed = false
     /// Closed while still failing, for setups that never pass (no `gh`, Codex only). Lasts until
-    /// relaunch; failures still show inline on the dashboard and as "N to set up" under the notch.
+    /// relaunch; failures are still counted in the dashboard header and as "N to set up" under the notch.
     @Published var skipped = false
 
     static let recheckInterval: TimeInterval = 10
@@ -28,7 +28,54 @@ final class SetupModel: ObservableObject {
     /// Show the checklist while first-run setup is incomplete, or on request.
     var visible: Bool { pinned || (hasRun && blocking > 0 && !everPassed && !skipped) }
 
+    /// Required checks that need a look, failing first, then warnings, then switched off.
+    var requiredToDo: [SetupCheck] {
+        func rank(_ status: SetupCheck.Status) -> Int {
+            switch status {
+            case .fail: return 0
+            case .warn: return 1
+            case .off, .pass: return 2
+            }
+        }
+        return checks.filter { $0.required && $0.status != .pass }.enumerated()
+            .sorted { (rank($0.element.status), $0.offset) < (rank($1.element.status), $1.offset) }.map(\.element)
+    }
+
+    var optionalToDo: [SetupCheck] { checks.filter { !$0.required && $0.status != .pass } }
+
+    /// Passing checks, required and optional, folded into one "N passed" line until shown.
+    var passed: [SetupCheck] { checks.filter { $0.status == .pass } }
+    @Published var showPassed = false
+
+    /// The rows on screen, in screen order, for the arrow keys.
+    var visibleRows: [SetupCheck] { requiredToDo + (showPassed ? passed : []) + optionalToDo }
+
+    /// The row the arrow keys are on, by check id.
+    @Published private(set) var focusedCheck: String?
+
+    /// Arrow keys move through the rows as shown: required, then optional.
+    func moveFocus(by step: Int) {
+        let ids = visibleRows.map(\.id)
+        guard !ids.isEmpty else { return }
+        let next = focusedCheck.flatMap(ids.firstIndex(of:)).map { min(max($0 + step, 0), ids.count - 1) } ?? 0
+        focusedCheck = ids[next]
+    }
+
+    /// Return on a row applies its fix, like clicking the link.
+    func applyFocused() {
+        guard let fix = checks.first(where: { $0.id == focusedCheck })?.fix else { return }
+        _ = apply(fix)
+    }
+
+    /// Opens the checklist over the dashboard and re-runs it, from the header or the menu.
+    func pin() {
+        pinned = true
+        Task { await run() }
+    }
+
     func close() {
+        focusedCheck = nil
+        showPassed = false
         pinned = false
         skipped = true
     }
@@ -40,6 +87,8 @@ final class SetupModel: ObservableObject {
     /// Refetches usage and PRs regardless of their intervals, so "retry" means retry.
     var refresh: () async -> Void = {}
     var fixApplied: () -> Void = {}
+    /// Called once per launch, when every required check first passes.
+    var firstPassed: () -> Void = {}
 
     /// A run requested mid-run queues one more and waits for it, so a "retry" sees its own result.
     func run() async {
@@ -55,7 +104,10 @@ final class SetupModel: ObservableObject {
             } while rerun
             // An offline first launch (a warn, not a failure) must not latch: the network may be
             // masking a sign-in problem. Other warnings (a rate limit, a stale proxy) do not hold it.
-            if blocking == 0, !checks.contains(where: \.inconclusive) { everPassed = true }
+            if blocking == 0, !checks.contains(where: \.inconclusive), !everPassed {
+                everPassed = true
+                firstPassed()
+            }
             running = false
         }
         current = task
@@ -154,6 +206,8 @@ final class SetupModel: ObservableObject {
             Notifier.shared.requestAuthorization()
         case .openNotificationSettings:
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
+        case .openSlackChannel(let id):
+            if let url = URL(string: "slack://channel?id=\(id)") { NSWorkspace.shared.open(url) }
         case .openSlackSettings:
             openSettings()
         case .enableLoginItem:

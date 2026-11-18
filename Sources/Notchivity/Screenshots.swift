@@ -27,7 +27,7 @@ enum Screenshots {
             ),
             (
                 "nudge", AnyView(panel(ExpandedView(model: nudge, geometry: expanded))),
-                "Nudge reviewers from the notch", "Pick the PRs that are waiting and ask for review in Slack", 880
+                "Ask for review from the notch", "Pick the PRs that are waiting and ask for review in Slack", 880
             ),
             (
                 "tab", AnyView(storeTabs()),
@@ -63,7 +63,8 @@ enum Screenshots {
 
         let retry = demoModel()
         retry.selectedPRs = Set(retry.orderedPRs.suffix(2).map(\.id))
-        retry.loadDemoStatus(slack: SlackNudger.failureSummary(SampleError(description: "slack: not_in_channel")), failed: true)
+        let rejected = SampleError(description: "slack: invalid_auth")
+        retry.loadDemoStatus(slack: SlackNudger.failureSummary(rejected), failed: true, fix: SlackNudger.failureFix(rejected))
         save(panel(ExpandedView(model: retry, geometry: expanded)), "expanded-slack-failed", dir)
 
         let loading = AppModel()
@@ -72,12 +73,42 @@ enum Screenshots {
         let empty = demoModel(prs: [])
         save(panel(ExpandedView(model: empty, geometry: expanded)), "expanded-empty", dir)
 
+        let firstHover = demoModel()
+        firstHover.loadDemoGestureHint()
+        save(panel(ExpandedView(model: firstHover, geometry: expanded)), "expanded-first-hover", dir)
+
+        let stale = demoModel()
+        stale.loadDemoStalePRs(fetchedAgo: 14 * 60, failure: URLError(.timedOut))
+        save(panel(ExpandedView(model: stale, geometry: expanded)), "expanded-stale", dir)
+
         let failing = demoModel(accounts: troubledAccounts(now: Date()), prs: [], prFailure: URLError(.notConnectedToInternet))
         save(panel(ExpandedView(model: failing, geometry: expanded)), "expanded-errors", dir)
+
+        // Stress states for hardening: long and non-Latin text, every flag, every fault, and a crowd.
+        let extremes = demoModel(accounts: extremeAccounts(now: Date()), prs: extremePRs(now: Date()))
+        extremes.loadDemoLogin("a-rather-long-github-username-for-testing")
+        extremes.selectedPRs = [extremes.orderedPRs[1].id]
+        extremes.moveFocus(by: 1)
+        extremes.moveFocus(by: 1)
+        let notInChannel = SampleError(description: "slack: not_in_channel")
+        extremes.loadDemoStatus(
+            slack: SlackNudger.failureSummary(notInChannel), failed: true, fix: SlackNudger.failureFix(notInChannel, channel: "C0123456789"))
+        save(panel(ExpandedView(model: extremes, geometry: expanded)), "expanded-extremes", dir)
+
+        let crowd = demoModel(
+            accounts: (accounts(now: Date()) + extremeAccounts(now: Date())),
+            prs: (0..<50).map { i in pr("repo\(i % 7)", 100 + i, "chore: routine change number \(i)", now: Date(), minutesAgo: Double(i * 37), ci: .success) })
+        crowd.showAllPRs = true
+        save(panel(ExpandedView(model: crowd, geometry: expanded)), "expanded-crowd", dir)
 
         let setup = SetupModel()
         setup.loadDemo(setupChecks)
         save(panel(SetupView(setup: setup, geometry: expanded)), "setup", dir)
+
+        let setupKeys = SetupModel()
+        setupKeys.loadDemo(setupChecks)
+        setupKeys.moveFocus(by: 0)
+        save(panel(SetupView(setup: setupKeys, geometry: expanded)), "setup-keyboard", dir)
 
         save(collapsedTabs(), "collapsed", dir)
         save(peekStack(peeks + extraPeeks), "peek", dir)
@@ -221,19 +252,19 @@ enum Screenshots {
     private struct SampleError: Error, CustomStringConvertible { let description: String }
 
     private static let peeks = [
-        Event(kind: .ciFailed, headline: "web#318 CI failed", detail: "fix(web): checkout total rounds twice", tone: .bad),
-        Event(kind: .usageThreshold, headline: "Work session at 88%", detail: "resets 47m", tone: .warn),
-        Event(kind: .ready, headline: "notchivity#42 ready to merge", detail: "feat: monitor Grok Build usage", tone: .good),
+        Event(kind: .ciFailed, headline: "CI failed · web#318", detail: "fix(web): checkout total rounds twice", tone: .bad),
+        Event(kind: .usageThreshold, headline: "session at 88% · Work", detail: "resets 47m", tone: .warn),
+        Event(kind: .ready, headline: "ready to merge · notchivity#42", detail: "feat: monitor Grok Build usage", tone: .good),
     ]
 
     private static let extraPeeks = [
-        Event(kind: .merged, headline: "api#1190 merged", detail: "feat(api): idempotent webhooks", tone: .info),
+        Event(kind: .merged, headline: "merged · api#1190", detail: "feat(api): idempotent webhooks", tone: .info),
         Event(kind: .fetchBroken, headline: "PR fetch failing", detail: "GitHub unreachable", tone: .warn),
         EventDiff.summary([
-            Event(kind: .approved, headline: "api#1204 approved", tone: .good),
-            Event(kind: .ciFailed, headline: "web#322 CI failed", tone: .bad),
-            Event(kind: .newThreads, headline: "mobile#80 2 new comments", tone: .warn),
-            Event(kind: .merged, headline: "infra#11 merged", tone: .info),
+            Event(kind: .approved, headline: "approved · api#1204", tone: .good),
+            Event(kind: .ciFailed, headline: "CI failed · web#322", tone: .bad),
+            Event(kind: .newThreads, headline: "2 new comments · mobile#80", tone: .warn),
+            Event(kind: .merged, headline: "merged · infra#11", tone: .info),
         ]),
     ]
 
@@ -249,7 +280,7 @@ enum Screenshots {
             id: "notifications", title: "notifications not yet allowed", status: .off,
             detail: "optional · peeks still work", required: false, fix: .allowNotifications),
         SetupCheck(id: "login", title: "launch at login", status: .off, detail: "optional", required: false, fix: .enableLoginItem),
-        SetupCheck(id: "slack", title: "Slack review nudges", status: .off, detail: "optional", required: false, fix: .openSlackSettings),
+        SetupCheck(id: "slack", title: "Slack review asks", status: .off, detail: "optional", required: false, fix: .openSlackSettings),
     ]
 
     private static func accounts(now: Date) -> [AccountUsage] {
@@ -281,6 +312,41 @@ enum Screenshots {
             AccountUsage(
                 id: "codex", label: "Codex", provider: .codex, sessionPct: 12, weeklyPct: 27,
                 sessionResetsAt: t + 4 * 3600, weeklyResetsAt: t + 2 * 86_400, observedAt: t - 3 * 3600),
+        ]
+    }
+
+    /// A week leading the session, a rate limit over a good reading, a long renamed account, a
+    /// session-only reading with no reset, and non-Latin names.
+    private static func extremeAccounts(now: Date) -> [AccountUsage] {
+        let t = now.timeIntervalSince1970
+        var renamed = AccountUsage(
+            id: "claude-personal", label: "Claude", sessionPct: 30, weeklyPct: 92,
+            sessionResetsAt: t + 3 * 3600, weeklyResetsAt: t + 86_400 + 7200)
+        renamed.customLabel = "personal-gmail-account"
+        return [
+            renamed,
+            AccountUsage(
+                id: "claude-ratelimited", label: "Throttled", sessionPct: 100, weeklyPct: 100,
+                sessionResetsAt: t + 30, weeklyResetsAt: t + 6 * 86_400, failure: .http(429)),
+            AccountUsage(id: "codex-sessiononly", label: "Codex", provider: .codex, sessionPct: 3),
+            AccountUsage(id: "claude-emoji", label: "🚀 東京チーム", sessionPct: 55, weeklyPct: 74, sessionResetsAt: t + 59, weeklyResetsAt: t + 40 * 86_400),
+            AccountUsage(id: "grok-keychain", label: "Grok", provider: .grok, failure: .keychain),
+        ]
+    }
+
+    /// Every flag at once, very long, emoji, CJK and RTL titles, a long repo and ref, and old ages.
+    private static func extremePRs(now: Date) -> [PullRequest] {
+        [
+            pr(
+                "web", 318, "fix(web): everything at once", now: now, minutesAgo: 3, ci: .failure, draft: true, conflicts: true,
+                threads: 14, approvals: 3, changesRequested: true, human: true),
+            pr(
+                "a-very-long-repository-name-in-the-monorepo", 123_456,
+                "refactor(checkout): move the entire pricing, discount, tax and rounding pipeline into a single typed reducer with exhaustive tests",
+                now: now, minutesAgo: 60 * 24 * 400, ci: .success, threads: 1, human: true),
+            pr("i18n", 7, "feat: 日本語のローカライズを追加する 🎌 and العربية support for right-to-left layouts", now: now, minutesAgo: 59, ci: .pending),
+            pr("emoji", 8, "🐛🔥💥 fix crash when title is only emoji 🎉🎉🎉🎉🎉🎉🎉🎉", now: now, minutesAgo: 1, ci: .success, approvals: 1),
+            pr("docs", 9, "x", now: now, minutesAgo: 0, ci: .none, draft: true),
         ]
     }
 

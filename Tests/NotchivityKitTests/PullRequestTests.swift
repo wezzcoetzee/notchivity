@@ -29,8 +29,15 @@ private func pr(
     @Test func amberRowsLeadWithAnAmberReason() {
         #expect(pr(approvals: 1, draft: true).flags.first?.text == "draft")
         #expect(pr(approvals: 1, draft: true).flags.first?.tone == .warn)
-        #expect(pr(human: true).flags.first?.text == "reviewed")
-        #expect(pr(threads: 2).flags.first?.text == "2 comments")
+        #expect(pr(human: true).flags.first?.text == "not approved")
+        #expect(pr(threads: 2).flags.first?.text == "2 unresolved")
+    }
+
+    /// Blue says "awaiting review" only when the PR is actually waiting on a reviewer.
+    @Test func blueRowsNameTheirCategory() {
+        #expect(pr(ci: .pending).flags.map(\.text) == ["awaiting review", "CI running"])
+        #expect(pr(draft: true).flags.map(\.text) == ["draft"])
+        #expect(pr(ci: .pending, approvals: 1).flags.map(\.text) == ["CI running", "approved"])
     }
 
     @Test func decodesGraphQLAndFiltersBotReviews() throws {
@@ -70,9 +77,9 @@ private func pr(
         let old = [pr(number: 1), pr(number: 2, threads: 1), pr(number: 3, human: true)]
         let new = [pr(number: 1, ci: .failure), pr(number: 2, threads: 3), pr(number: 3, approvals: 1)]
         let summary = EventDiff.summary(EventDiff.prs(old: old, new: new))
-        #expect(summary.headline == "repo#1 CI failed")
+        #expect(summary.headline == "CI failed · repo#1 · 3 more")
         #expect(summary.tone == .bad)
-        #expect(summary.detail == "+3 more · repo#2 2 new comments")
+        #expect(summary.detail == "new comments · approved · ready to merge")
     }
 
     @Test func unchangedAndNewPRsAreQuiet() {
@@ -94,7 +101,7 @@ private func pr(
         let events = EventDiff.usage(old: old, new: new)
         #expect(events.count == 1)
         #expect(events[0].kind == .usageThreshold)
-        #expect(events[0].headline == "idexx session at 92%")
+        #expect(events[0].headline == "session at 92% · idexx")
         #expect(events[0].detail?.contains("ezyvet has 95% free") == true)
         #expect(EventDiff.usage(old: new, new: new).isEmpty)
     }

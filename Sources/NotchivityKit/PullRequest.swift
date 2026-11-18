@@ -66,20 +66,22 @@ public struct PullRequest: Codable, Equatable, Identifiable {
     /// Short status words for the row's right-hand column, most urgent first.
     public var flags: [(text: String, tone: Tone)] {
         var out: [(String, Tone)] = []
+        // Like an amber row's reason, a blue row says what blue means. Not on a draft (not asking
+        // yet) or an approved PR (blue only while its CI runs, which its flag already says).
+        if category == .awaitingReview, approvals == 0, !draft { out.append(("awaiting review", .waiting)) }
         if conflicts { out.append(("conflicts", .bad)) }
         if ci == .failure { out.append(("CI failed", .bad)) }
         if ci == .pending { out.append(("CI running", .dim)) }
         if changesRequested { out.append(("changes requested", .warn)) }
-        if unresolvedThreads > 0 { out.append((plural(unresolvedThreads, "comment"), .warn)) }
+        if unresolvedThreads > 0 { out.append(("\(unresolvedThreads) unresolved", .warn)) }
         if approvals > 0 { out.append(("approved", .good)) }
-        // A pass is the absence of an alarm, so it stays grey and the row keeps one lamp colour.
-        if ci == .success && !conflicts { out.append(("CI ✓", .dim)) }
+        // A passing CI is the absence of an alarm, so it says nothing and leaves the slot free.
         if draft { out.append(("draft", .dim)) }
         // An amber dot always leads with an amber reason: an approved draft needs marking
-        // ready, anything else was reviewed without an approval.
+        // ready, anything else was reviewed without an approval ("not approved").
         if category == .needsAction, !out.contains(where: { $0.1 == .warn }) {
             out.removeAll { $0.0 == "draft" }
-            out.insert(draft ? ("draft", .warn) : ("reviewed", .warn), at: 0)
+            out.insert(draft ? ("draft", .warn) : ("not approved", .warn), at: 0)
         }
         return out
     }
@@ -87,6 +89,8 @@ public struct PullRequest: Codable, Equatable, Identifiable {
 
 public enum Tone {
     case bad, warn, good, dim, info
+    /// Awaiting review: the blue lamp, also the link colour.
+    case waiting
 
     /// For picking the most urgent of several events.
     public var severity: Int {
@@ -94,7 +98,7 @@ public enum Tone {
         case .bad: return 4
         case .warn: return 3
         case .good: return 2
-        case .info: return 1
+        case .info, .waiting: return 1
         case .dim: return 0
         }
     }
@@ -108,7 +112,7 @@ extension PullRequest {
     public static let query = """
         query($q: String!) {
           viewer { login }
-          search(query: $q, type: ISSUE, first: 100) {
+          search(query: $q, type: ISSUE, first: \(PRFetcher.pageSize)) {
             nodes {
               ... on PullRequest {
                 number title url isDraft mergeable reviewDecision updatedAt headRefName

@@ -6,6 +6,7 @@ import Foundation
 /// nudge inside that thread. Several PRs at once go out as one list message, which then
 /// becomes the thread for each of them.
 public struct SlackNudger {
+    /// `nudged`: a later ask, posted as a reminder in the PR's existing thread.
     public enum Outcome { case posted, nudged }
 
     let config: Config
@@ -87,15 +88,39 @@ public struct SlackNudger {
         try? JSONEncoder().encode(threads).write(to: threadsFile, options: .atomic)
     }
 
-    /// A short reason for the notch when an ask fails, from the Slack API error code or the
-    /// `claude -p` fallback's reply.
-    public static func failureSummary(_ error: Error) -> String {
+    enum Failure { case noChannel, channelNotFound, notInChannel, badToken, timeout, other }
+
+    /// Classifies a failed ask from the Slack API error code or the `claude -p` fallback's reply.
+    static func failure(_ error: Error) -> Failure {
         let text = "\(error)".lowercased()
-        if text.contains("slackchannel") { return "set a Slack channel in Settings" }
-        if text.contains("channel_not_found") { return "Slack channel not found" }
-        if text.contains("not_in_channel") { return "Slack bot not in channel" }
-        if text.contains("invalid_auth") || text.contains("not_authed") || text.contains("token_revoked") { return "Slack token rejected" }
-        if text.contains("timed out") || text.contains("timeout") { return "Slack post timed out" }
-        return "Slack post failed, check the channel and token in Settings"
+        if text.contains("slackchannel") { return .noChannel }
+        if text.contains("channel_not_found") { return .channelNotFound }
+        if text.contains("not_in_channel") { return .notInChannel }
+        if text.contains("invalid_auth") || text.contains("not_authed") || text.contains("token_revoked") { return .badToken }
+        if text.contains("timed out") || text.contains("timeout") { return .timeout }
+        return .other
+    }
+
+    /// A short reason for the notch when an ask fails.
+    public static func failureSummary(_ error: Error) -> String {
+        switch failure(error) {
+        case .noChannel: return "no Slack channel set"
+        case .channelNotFound: return "Slack channel not found"
+        // The bot's name is not known here, so the line says the fix instead of linking it.
+        case .notInChannel: return "invite the Slack bot to the channel"
+        case .badToken: return "Slack token rejected"
+        case .timeout: return "Slack post timed out"
+        case .other: return "Slack post failed"
+        }
+    }
+
+    /// The link beside a failed ask. A missing bot opens the channel, where "/invite" goes. A
+    /// timeout has none: the failed PRs stay selected, so the selection line is the retry.
+    public static func failureFix(_ error: Error, channel: String? = Config.load().slackChannel) -> SetupCheck.Fix? {
+        switch failure(error) {
+        case .noChannel, .channelNotFound, .badToken, .other: return .openSlackSettings
+        case .notInChannel: return channel.map(SetupCheck.Fix.openSlackChannel)
+        case .timeout: return nil
+        }
     }
 }

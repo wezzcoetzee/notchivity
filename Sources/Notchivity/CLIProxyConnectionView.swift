@@ -11,10 +11,13 @@ struct CLIProxyConnectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("CLI proxy").font(.bodyStrong)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("CLI proxy").font(.bodyStrong)
+                Text("read usage from a shared proxy instead of this Mac").font(.detail).foregroundStyle(Color.dim)
+            }
             labelled("Base URL") { TextField("https://proxy.example.com", text: $url) }
             labelled("Read-only token") { SecureField("USAGE_LIMITS_TOKEN", text: $token) }
-            Text("the token is stored in Keychain, clear the URL to go back to local discovery")
+            Text("the token is stored in Keychain; clear the URL to use this Mac's accounts again")
                 .font(.detail).foregroundStyle(Color.dim)
             if let error { Text(error).font(.detail).foregroundStyle(Color.warn).fixedSize(horizontal: false, vertical: true) }
             HStack {
