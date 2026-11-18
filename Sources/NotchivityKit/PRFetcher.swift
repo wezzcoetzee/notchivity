@@ -3,6 +3,9 @@ import Foundation
 /// Lists the current user's open PRs through the `gh` CLI so auth and the corporate
 /// proxy are gh's problem, not ours.
 public struct PRFetcher {
+    /// The search returns at most this many PRs; the panel shows "100+" at the cap.
+    public static let pageSize = 100
+
     public init() {}
 
     public func fetch() async throws -> (me: String, prs: [PullRequest]) {

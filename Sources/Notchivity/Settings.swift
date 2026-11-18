@@ -31,6 +31,8 @@ final class Settings: ObservableObject {
     @Stored("collapsedUsage", default: true) var collapsedUsage: Bool
     @Stored("indicator", default: Indicator.counts.rawValue) private var indicatorRaw: String
     @Stored("hoverDelayMs", default: 120) var hoverDelayMs: Int
+    /// ⌃⌥N expands the notch from any app and hands it the keyboard.
+    @Stored("keyboardShortcut", default: true) var keyboardShortcut: Bool
 
     init() {
         for child in Mirror(reflecting: self).children {

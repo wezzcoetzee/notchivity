@@ -48,3 +48,19 @@ import Testing
         #expect(checks.allSatisfy { !$0.required && !$0.blocking })
     }
 }
+
+@Suite struct ProviderRequirementTests {
+    /// A Codex-only setup is complete: the missing Claude sign-in is listed but does not block.
+    @Test func anyReadingProviderCompletesSetup() async {
+        let codex = AccountUsage(id: "codex", label: "Codex", provider: .codex, sessionPct: 10)
+        let checks = await SetupDoctor().quotaChecks(usage: [codex], config: Config())
+        let claude = checks.first { $0.id == "accounts" }
+        #expect(claude?.required == false)
+        #expect(claude?.blocking == false)
+    }
+
+    @Test func noProviderAtAllStillBlocks() async {
+        let checks = await SetupDoctor().quotaChecks(usage: [], config: Config())
+        #expect(checks.first { $0.id == "accounts" }?.blocking == true)
+    }
+}

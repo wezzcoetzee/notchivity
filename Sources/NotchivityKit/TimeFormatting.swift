@@ -15,6 +15,8 @@ public enum TimeFormatting {
         let seconds = max(0, secondsAgo)
         if seconds < 60 { return "updated \(seconds)s ago" }
         let minutes = seconds / 60
-        return minutes < 60 ? "updated \(minutes)m ago" : "updated \(minutes / 60)h ago"
+        if minutes < 60 { return "updated \(minutes)m ago" }
+        // After a long sleep "53h" is harder to read than days.
+        return minutes < 48 * 60 ? "updated \(minutes / 60)h ago" : "updated \(minutes / 1440)d ago"
     }
 }

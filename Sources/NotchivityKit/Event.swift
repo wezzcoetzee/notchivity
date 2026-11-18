@@ -5,6 +5,11 @@ public struct Event: Equatable, Identifiable {
     public enum Kind: String, CaseIterable, Codable {
         case ciFailed, conflicts, changesRequested, newThreads, approved, ready, merged
         case usageThreshold, limitReset, fetchBroken
+        /// The one-time "ready" peek the first time setup passes. Never a notification.
+        case welcome
+
+        /// The kinds Settings › Notifications lists; the welcome peek is not a choice.
+        public static var configurable: [Kind] { allCases.filter { $0 != .welcome } }
 
         public var title: String {
             switch self {
@@ -16,8 +21,9 @@ public struct Event: Equatable, Identifiable {
             case .ready: return "Ready to merge"
             case .merged: return "Merged"
             case .usageThreshold: return "Usage threshold"
-            case .limitReset: return "Limit reset"
-            case .fetchBroken: return "Fetch failing"
+            case .limitReset: return "Usage reset"
+            case .fetchBroken: return "PR fetch failing"
+            case .welcome: return "Setup done"
             }
         }
 
@@ -25,8 +31,27 @@ public struct Event: Equatable, Identifiable {
         public var notifiesByDefault: Bool {
             switch self {
             case .ciFailed, .conflicts, .changesRequested, .approved, .ready, .usageThreshold: return true
-            case .newThreads, .merged, .limitReset, .fetchBroken: return false
+            case .newThreads, .merged, .limitReset, .fetchBroken, .welcome: return false
             }
+        }
+
+        /// How a burst summary names the events it stands in for, counted only past one.
+        func counted(_ n: Int) -> String {
+            let label: String
+            switch self {
+            case .ciFailed: label = "CI failed"
+            case .conflicts: label = "conflicts"
+            case .changesRequested: label = "changes requested"
+            case .newThreads: label = "new comments"
+            case .approved: label = "approved"
+            case .ready: label = "ready to merge"
+            case .merged: label = "merged"
+            case .usageThreshold: label = n > 1 ? "usage alerts" : "usage alert"
+            case .limitReset: label = n > 1 ? "usage resets" : "usage reset"
+            case .fetchBroken: label = "PR fetch failing"
+            case .welcome: label = "setup done"
+            }
+            return n > 1 ? "\(n) \(label)" : label
         }
     }
 
@@ -55,38 +80,43 @@ public enum EventDiff {
 
     public static func prs(old: [PullRequest], new: [PullRequest]) -> [Event] {
         var events: [Event] = []
-        let before = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
+        // Last one wins: a duplicate id must not crash the poll.
+        let before = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         for pr in new {
             guard let was = before[pr.id] else { continue }
             if pr.ci == .failure && was.ci != .failure {
-                events.append(.init(kind: .ciFailed, headline: "\(pr.shortRef) CI failed", detail: pr.title, tone: .bad, url: pr.url))
+                events.append(.init(kind: .ciFailed, headline: "CI failed · \(pr.shortRef)", detail: pr.title, tone: .bad, url: pr.url))
             }
             if pr.conflicts && !was.conflicts {
-                events.append(.init(kind: .conflicts, headline: "\(pr.shortRef) conflicts", detail: pr.title, tone: .bad, url: pr.url))
+                events.append(.init(kind: .conflicts, headline: "conflicts · \(pr.shortRef)", detail: pr.title, tone: .bad, url: pr.url))
             }
             if pr.changesRequested && !was.changesRequested {
-                events.append(.init(kind: .changesRequested, headline: "\(pr.shortRef) changes requested", detail: pr.title, tone: .warn, url: pr.url))
+                events.append(.init(kind: .changesRequested, headline: "changes requested · \(pr.shortRef)", detail: pr.title, tone: .warn, url: pr.url))
             }
             if pr.unresolvedThreads > was.unresolvedThreads {
                 let n = pr.unresolvedThreads - was.unresolvedThreads
-                events.append(.init(kind: .newThreads, headline: "\(pr.shortRef) \(plural(n, "new comment"))", detail: pr.title, tone: .warn, url: pr.url))
+                events.append(.init(kind: .newThreads, headline: "\(plural(n, "new comment")) · \(pr.shortRef)", detail: pr.title, tone: .warn, url: pr.url))
             }
             if pr.approvals > 0 && was.approvals == 0 {
-                events.append(.init(kind: .approved, headline: "\(pr.shortRef) approved", detail: pr.title, tone: .good, url: pr.url))
+                events.append(.init(kind: .approved, headline: "approved · \(pr.shortRef)", detail: pr.title, tone: .good, url: pr.url))
             }
             if pr.category == .ready && was.category != .ready {
-                events.append(.init(kind: .ready, headline: "\(pr.shortRef) ready to merge", detail: pr.title, tone: .good, url: pr.url))
+                events.append(.init(kind: .ready, headline: "ready to merge · \(pr.shortRef)", detail: pr.title, tone: .good, url: pr.url))
             }
         }
         return events
     }
 
-    /// One peek standing in for a burst: the most urgent event leads, the rest are counted.
+    /// One peek standing in for a burst: the most urgent event leads ("CI failed · web#322 ·
+    /// 3 more") and the rest are counted by kind in arrival order ("new comments · 2 approved"),
+    /// rather than naming one of them as if it were the only other.
     public static func summary(_ events: [Event]) -> Event {
-        let ranked = events.sorted { $0.tone.severity > $1.tone.severity }
-        let worst = ranked[0]
-        let detail = ["+\(ranked.count - 1) more"] + ranked.dropFirst().prefix(1).map(\.headline)
-        return Event(kind: worst.kind, headline: worst.headline, detail: detail.joined(separator: " · "), tone: worst.tone, url: worst.url)
+        let worst = events.max { $0.tone.severity < $1.tone.severity } ?? events[0]
+        let rest = events.filter { $0.id != worst.id }
+        var kinds: [Event.Kind] = []
+        for event in rest where !kinds.contains(event.kind) { kinds.append(event.kind) }
+        let detail = kinds.map { kind in kind.counted(rest.filter { $0.kind == kind }.count) }.joined(separator: " · ")
+        return Event(kind: worst.kind, headline: "\(worst.headline) · \(rest.count) more", detail: detail, tone: worst.tone, url: worst.url)
     }
 
     /// PRs present before and gone now. The caller decides merged vs closed.
@@ -96,12 +126,13 @@ public enum EventDiff {
     }
 
     public static func merged(_ pr: PullRequest) -> Event {
-        .init(kind: .merged, headline: "\(pr.shortRef) merged", detail: pr.title, tone: .info, url: pr.url)
+        .init(kind: .merged, headline: "merged · \(pr.shortRef)", detail: pr.title, tone: .info, url: pr.url)
     }
 
     public static func usage(old: [AccountUsage], new: [AccountUsage], thresholds: [Double] = defaultThresholds) -> [Event] {
         var events: [Event] = []
-        let before = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
+        // Last one wins: a duplicate id must not crash the poll.
+        let before = Dictionary(old.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         for account in new where account.error == nil {
             guard let was = before[account.id], was.error == nil else { continue }
             for window in AccountUsage.Window.allCases {
@@ -115,19 +146,18 @@ public enum EventDiff {
                             $0.id != account.id && $0.provider == account.provider && $0.failure == nil && ($0.pct(window) ?? 100) < 50
                         }
                     let reset = account.resetsAt(window).map { TimeFormatting.countdown(secondsRemaining: Int($0 - Date().timeIntervalSince1970)) }
-                    var detail = [reset.map { "resets \($0)" }, spare.map { "\($0.displayLabel) has \(100 - Int($0.pct(window) ?? 0))% free" }]
+                    let detail = [reset.map { "resets \($0)" }, spare.map { "\($0.displayLabel) has \(100 - Int($0.pct(window) ?? 0))% free" }]
                         .compactMap { $0 }.joined(separator: " · ")
-                    if detail.isEmpty { detail = window.rawValue }
                     events.append(
                         .init(
                             kind: .usageThreshold,
-                            headline: "\(account.displayLabel) \(window.rawValue) at \(Int(now))%",
-                            detail: detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim))
+                            headline: "\(window.rawValue) at \(Int(now))% · \(account.displayLabel)",
+                            detail: detail.isEmpty ? nil : detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim))
                 }
                 if then >= 20 && now < then - 15 {
                     events.append(
                         .init(
-                            kind: .limitReset, headline: "\(account.displayLabel) \(window.rawValue) window reset",
+                            kind: .limitReset, headline: "\(window.rawValue) reset · \(account.displayLabel)",
                             detail: "\(Int(then))% → \(Int(now))%", tone: .info))
                 }
             }

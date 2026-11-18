@@ -23,8 +23,8 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
         switch self {
         case .keychain: return "keychain item not readable, click Always Allow in the macOS prompt"
         case .http(401): return "token expired, open Claude Code to refresh it"
-        case .http(429): return "rate limited, is another usage poller running?"
-        case .http(let status): return "usage endpoint HTTP \(status)"
+        case .http(429): return "rate limited, close other usage trackers"
+        case .http(let status): return status >= 500 ? "usage service error, retrying" : "usage service error \(status)"
         case .unreachable: return "usage endpoint unreachable"
         case .unreadable: return "unreadable usage response"
         case .other(let message): return message
@@ -49,7 +49,7 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
         case .keychain: return "keychain not readable"
         case .http(401): return "token expired"
         case .http(429): return "rate limited"
-        case .http(let status): return "usage endpoint HTTP \(status)"
+        case .http: return "usage service error"
         case .unreachable: return "unreachable"
         case .unreadable: return "unreadable usage response"
         case .other(let message): return message
