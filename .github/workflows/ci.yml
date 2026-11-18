@@ -1,0 +1,10 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  macos:
+    uses: wezzcoetzee/.github/.github/workflows/macos-ci.yml@main

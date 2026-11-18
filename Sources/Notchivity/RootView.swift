@@ -24,7 +24,8 @@ struct RootView: View {
             .transition(
                 .asymmetric(
                     insertion: .opacity.animation(.easeOut(duration: 0.1).delay(0.1)),
-                    removal: .opacity.animation(.linear(duration: 0))))
+                    removal: .opacity.animation(.linear(duration: 0)))
+            )
             .id(geometry.state)
             .foregroundStyle(.white)
             .background(UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius).fill(.black))
