@@ -2,13 +2,12 @@ import Foundation
 
 /// Something that changed between two fetches and deserves a peek or a notification.
 public struct Event: Equatable, Identifiable {
-    public enum Kind: String, CaseIterable, Codable {
+    public enum Kind: String, CaseIterable {
         case ciFailed, conflicts, changesRequested, newThreads, approved, ready, merged
         case usageThreshold, limitReset, fetchBroken
         /// The one-time "ready" peek the first time setup passes. Never a notification.
         case welcome
 
-        /// The kinds Settings › Notifications lists; the welcome peek is not a choice.
         public static var configurable: [Kind] { allCases.filter { $0 != .welcome } }
 
         public var title: String {

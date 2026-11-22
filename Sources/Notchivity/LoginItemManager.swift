@@ -7,7 +7,7 @@ final class LoginItemManager: ObservableObject {
     @Published private(set) var isEnabled: Bool
     private let service = SMAppService.mainApp
 
-    /// Launch at login needs the bundle in /Applications; Settings and the setup check both ask.
+    /// Launch at login needs the bundle in /Applications.
     static var inApplications: Bool { Bundle.main.bundleURL.path.hasPrefix("/Applications/") }
 
     init() { isEnabled = service.status == .enabled }

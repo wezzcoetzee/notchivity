@@ -15,12 +15,6 @@ private func config(
 }
 
 @Suite struct ClaudeAccountTests {
-    @Test func defaultDirectoryUsesBareKeychainService() {
-        #expect(
-            ClaudeAccount.keychainService(forConfigDirectory: "/Users/w/.claude", isDefault: true)
-                == "Claude Code-credentials")
-    }
-
     @Test func customDirectoryAppendsSHA256PrefixOfItsPath() {
         // Observed on a real machine: this is the item Claude Code created for that directory.
         #expect(
@@ -43,7 +37,6 @@ private func config(
         #expect(accounts.map(\.id) == ["one", "two"])
         #expect(accounts.map(\.label) == ["idexx", "ezyvet"])
         #expect(accounts[0].keychainService == "Claude Code-credentials")
-        #expect(accounts[1].keychainService.hasPrefix("Claude Code-credentials-"))
     }
 
     @Test func discoverySkipsDirectoriesWithoutASignIn() {

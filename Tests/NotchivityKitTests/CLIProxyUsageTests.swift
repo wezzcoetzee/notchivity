@@ -20,17 +20,6 @@ private let proxyPayload = #"""
 @Suite struct CLIProxyUsageTests {
     private let source = CLIProxyUsageSource(baseURL: "https://proxy.example.com")
 
-    @Test func existingConfigRemainsLocalAndPreservesSlackWhenAddingProxy() throws {
-        var config = try JSONDecoder().decode(Config.self, from: Data(#"{"slackChannel":"sample","slackBotToken":"sample-token"}"#.utf8))
-        #expect(!config.usesCLIProxy)
-        config.cliProxyURL = "https://proxy.example.com"
-        let data = try JSONEncoder().encode(config)
-        let saved = try JSONDecoder().decode(Config.self, from: data)
-        #expect(saved.usesCLIProxy)
-        #expect(saved.slackChannel == "sample")
-        #expect(saved.slackBotToken == "sample-token")
-    }
-
     @Test func normalizesAccountsWithoutAveragingOrInventingMissingWindows() throws {
         let readings = try source.readings(from: Data(proxyPayload.utf8))
         #expect(readings.map(\.provider) == [.claude, .claude, .codex, .grok])
@@ -137,7 +126,6 @@ private let proxyPayload = #"""
     }
 
     private struct LocalSource: UsageSource {
-        let provider = UsageProvider.claude
         func fetch(previous: [AccountUsage]) async -> [AccountUsage] { [AccountUsage(id: "local", label: "local")] }
     }
 }

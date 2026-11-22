@@ -19,7 +19,6 @@ public struct PRFetcher {
         return try PullRequest.decode(data)
     }
 
-    /// Whether a PR that left the open set was merged (true) or closed (false).
     public func wasMerged(_ pr: PullRequest) async -> Bool {
         let parts = pr.repo.split(separator: "/")
         guard parts.count == 2 else { return false }

@@ -14,7 +14,6 @@ final class AppModel: ObservableObject {
     @Published private(set) var peek: Event? {
         didSet { if let peek, peek != oldValue { announce(peek.headline) } }
     }
-    /// The transient line under the PR list after a Slack ask.
     @Published private(set) var slackStatus: SlackStatus?
     /// "view all" toggled in the expanded PR list; reset when the panel collapses.
     @Published var showAllPRs = false
@@ -282,7 +281,6 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Withdraws the current peek and moves on to the next queued one after a short gap.
     func dismissPeek() {
         peekTask?.cancel()
         peekTask = nil
@@ -349,7 +347,6 @@ final class AppModel: ObservableObject {
     /// Bumped on every close, so an ask that finishes after the panel closed can tell.
     private var panelSession = 0
 
-    /// Resets everything the expanded panel holds only while it is open.
     func panelClosed() {
         panelSession += 1
         showAllPRs = false
@@ -526,7 +523,6 @@ final class AppModel: ObservableObject {
         return "\(index + 1) of \(same.count)"
     }
 
-    /// The fix for the PR fetch error, shown where the error is read.
     var prFix: SetupCheck.Fix? {
         guard let prError else { return nil }
         return prError == Shell.signedOut ? .copy("gh auth login") : .retry
@@ -653,7 +649,6 @@ final class AppModel: ObservableObject {
     /// Re-applies the names typed in Settings to the readings already on screen.
     func applyAccountNames() { accounts = accounts.map(named) }
 
-    /// Overlays the user's name for an account, if they gave it one.
     private func named(_ account: AccountUsage) -> AccountUsage {
         var named = account
         let custom = settings.accountNames[account.id]?.trimmingCharacters(in: .whitespaces)
@@ -661,12 +656,10 @@ final class AppModel: ObservableObject {
         return named
     }
 
-    /// The account behind the collapsed underline, per settings.
     var underlineAccount: AccountUsage? {
         accounts.first { $0.id == settings.underlineAccount } ?? primary
     }
 
-    /// PRs in the user's category order, drafts removed if asked.
     var orderedPRs: [PullRequest] {
         let visible = settings.hideDrafts ? prs.filter { !$0.draft } : prs
         return settings.categoryOrder.flatMap { category in visible.filter { $0.category == category } }

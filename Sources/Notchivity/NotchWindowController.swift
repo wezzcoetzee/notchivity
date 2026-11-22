@@ -4,7 +4,6 @@ import Combine
 import NotchivityKit
 import SwiftUI
 
-/// The three sizes the notch panel can take.
 enum NotchState: Equatable { case collapsed, peek, expanded }
 
 /// Geometry of one screen's notch plus that panel's state, shared with its views.
@@ -18,7 +17,6 @@ final class NotchGeometry: ObservableObject {
     @Published var isFake = false
     /// The visible height of this panel's screen, which bounds how far "view all" may grow.
     @Published var screenHeight: CGFloat = 900
-    /// Called by the views when the pointer enters or leaves the black shape.
     var onHover: (Bool) -> Void = { _ in }
     /// Called when a peek is clicked, after it has opened its URL.
     var onPeekTap: () -> Void = {}

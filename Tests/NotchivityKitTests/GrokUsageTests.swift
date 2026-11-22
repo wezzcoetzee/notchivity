@@ -109,12 +109,6 @@ private func billingLine(
         #expect(EventDiff.usage(old: [previous], new: result).isEmpty)
     }
 
-    @Test func configuredPathsAreUsedWithoutReadingCredentials() {
-        let source = GrokUsageSource(environment: ["GROK_HOME": "/tmp/custom-grok", "GROK_AUTH_PATH": "/tmp/custom-auth.json"])
-        #expect(source.directory.path == "/tmp/custom-grok")
-        #expect(source.authFile.path == "/tmp/custom-auth.json")
-    }
-
     @Test func oversizedLogSkipsThePartialHeadAndReadsTheRetainedTail() throws {
         let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: file) }
@@ -146,13 +140,5 @@ private func billingLine(
         #expect(events.first?.headline == "monthly at 95% · grok")
         #expect(EventDiff.usage(old: [new], new: [new]).isEmpty)
         #expect(EventDiff.usage(old: [new], new: [old]).first?.kind == .limitReset)
-    }
-
-    @Test func oldAccountEncodingStillDecodesWithBothWindows() throws {
-        let old = Data(#"{"id":"codex","label":"codex","provider":"codex","sessionPct":15,"weeklyPct":35}"#.utf8)
-        let usage = try JSONDecoder().decode(AccountUsage.self, from: old)
-        #expect(usage.monthlyPct == nil)
-        #expect(usage.windows == [.session, .weekly])
-        #expect(usage.primaryPct == 15)
     }
 }

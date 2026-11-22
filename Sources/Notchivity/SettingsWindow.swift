@@ -2,8 +2,8 @@ import AppKit
 import NotchivityKit
 import SwiftUI
 
-/// The Settings window. Opened from the gear in the notch or the right-click menu. (Cmd-, only
-/// works once it is open: the app is an accessory and the notch panel never activates it.)
+/// Cmd-, only works once the window is open: the app is an accessory and the notch panel never
+/// activates it.
 @MainActor
 final class SettingsWindowController {
     static let shared = SettingsWindowController()
@@ -252,7 +252,6 @@ struct SettingsView: View {
                     "Launch at login", detail: inApplications ? nil : "needs the app in /Applications",
                     Binding(get: { loginItem.isEnabled }, set: { loginItem.setEnabled($0) }), disabled: !inApplications)
             } else {
-                // The same one-click fix the setup checklist offers.
                 row("Launch at login", detail: "needs the app in /Applications") {
                     FixLink(fix: .moveToApplications, setup: setup)
                 }

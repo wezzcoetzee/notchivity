@@ -8,7 +8,6 @@ final class HotKey {
     private var handler: EventHandlerRef?
     private let action: () -> Void
 
-    /// ⌃⌥N, the shortcut Settings › Displays names.
     static func controlOptionN(_ action: @escaping () -> Void) -> HotKey? {
         HotKey(keyCode: UInt32(kVK_ANSI_N), modifiers: UInt32(controlKey | optionKey), action: action)
     }

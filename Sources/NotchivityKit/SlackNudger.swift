@@ -31,7 +31,6 @@ public struct SlackNudger {
         return .posted
     }
 
-    /// One line per PR so the message stays scannable; links are labelled with the short ref.
     public static func batchMessage(_ prs: [PullRequest]) -> String {
         ([":eyes: \(plural(prs.count, "PR")) waiting for review please:"]
             + prs.map { "• <\($0.url.absoluteString)|\($0.shortRef)> \($0.title)" }).joined(separator: "\n")
@@ -101,7 +100,6 @@ public struct SlackNudger {
         return .other
     }
 
-    /// A short reason for the notch when an ask fails.
     public static func failureSummary(_ error: Error) -> String {
         switch failure(error) {
         case .noChannel: return "no Slack channel set"

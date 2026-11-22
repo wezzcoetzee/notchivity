@@ -1,12 +1,11 @@
 import Foundation
 
-/// Reads each signed-in account's OAuth token from the Keychain and polls the usage
-/// endpoint behind Claude Code's `/usage`. Token refresh belongs to Claude Code / T3 Code;
-/// a 401 here means neither has run for a while.
-public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
+public enum UsageError: Error, CustomStringConvertible, Equatable {
     case keychain
     case http(Int)
     case unreachable
+    case unreadable
+    case other(String)
 
     /// The one mapping from a thrown error, shared by the poller and `--doctor`.
     public init(_ error: Error) {
@@ -16,8 +15,6 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
             self = error is URLError ? .unreachable : .other("usage fetch failed")
         }
     }
-    case unreadable
-    case other(String)
 
     public var description: String {
         switch self {
@@ -56,7 +53,6 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
         }
     }
 
-    /// What the setup checklist can offer for this failure.
     public var fix: SetupCheck.Fix? {
         switch self {
         case .keychain: return .retry
@@ -68,8 +64,10 @@ public enum UsageError: Error, CustomStringConvertible, Equatable, Codable {
     }
 }
 
+/// Reads each signed-in account's OAuth token from the Keychain and polls the usage
+/// endpoint behind Claude Code's `/usage`. Token refresh belongs to Claude Code / T3 Code;
+/// a 401 here means neither has run for a while.
 public struct UsageFetcher: UsageSource {
-    public let provider = UsageProvider.claude
     public static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
     public init() {}

@@ -1,7 +1,7 @@
 import Foundation
 
 /// One account's usage reading, with only the windows its provider exposes.
-public struct AccountUsage: Codable, Equatable, Identifiable {
+public struct AccountUsage: Equatable, Identifiable {
     public var id: String
     public var label: String
     public var provider: UsageProvider
@@ -29,7 +29,6 @@ public struct AccountUsage: Codable, Equatable, Identifiable {
 
     public var error: String? { failure?.description }
 
-    /// The name to show for this account anywhere a human reads it.
     public var displayLabel: String { customLabel ?? label }
 
     public init(

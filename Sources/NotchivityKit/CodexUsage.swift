@@ -1,28 +1,17 @@
 import Foundation
 
 /// One rate-limit record as Codex wrote it into a rollout log.
-public struct CodexReading: Equatable {
+struct CodexReading {
     /// When Codex recorded it, which is the last time it ran a turn.
-    public var observedAt: Double
-    public var sessionPct: Double?
-    public var sessionResetsAt: Double?
-    public var weeklyPct: Double?
-    public var weeklyResetsAt: Double?
-
-    public init(
-        observedAt: Double, sessionPct: Double? = nil, sessionResetsAt: Double? = nil,
-        weeklyPct: Double? = nil, weeklyResetsAt: Double? = nil
-    ) {
-        self.observedAt = observedAt
-        self.sessionPct = sessionPct
-        self.sessionResetsAt = sessionResetsAt
-        self.weeklyPct = weeklyPct
-        self.weeklyResetsAt = weeklyResetsAt
-    }
+    let observedAt: Double
+    let sessionPct: Double?
+    let sessionResetsAt: Double?
+    let weeklyPct: Double?
+    let weeklyResetsAt: Double?
 
     /// Parses one rollout line, returning nil for the many lines that carry no rate limits.
     /// `primary` is the 5 hour window and `secondary` the 7 day one.
-    public static func parse(_ line: Data) -> CodexReading? {
+    static func parse(_ line: Data) -> CodexReading? {
         guard let root = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
             let payload = root["payload"] as? [String: Any],
             let limits = payload["rate_limits"] as? [String: Any]
@@ -40,7 +29,7 @@ public struct CodexReading: Equatable {
 
     /// A window whose reset time has passed rolled over after this record was written, and
     /// nothing has run since or there would be a newer record, so it is empty again.
-    public func accountUsage(now: Double) -> AccountUsage {
+    func accountUsage(now: Double) -> AccountUsage {
         let session = expire(pct: sessionPct, resetsAt: sessionResetsAt, now: now)
         let weekly = expire(pct: weeklyPct, resetsAt: weeklyResetsAt, now: now)
         return AccountUsage(
@@ -60,7 +49,6 @@ public struct CodexReading: Equatable {
 /// from disk: no token, no second caller on OpenAI's API. The cost is freshness, since the
 /// reading only moves when Codex runs. `observedAt` carries that so the UI can say so.
 public struct CodexUsageSource: UsageSource {
-    public let provider = UsageProvider.codex
     static let accountId = "codex"
     static let label = "codex"
     /// Rollouts hold one line per event; the rate limits are near the end of the last turn.
@@ -89,7 +77,7 @@ public struct CodexUsageSource: UsageSource {
     static func newestReading(in sessions: URL) -> CodexReading? {
         var newest: CodexReading?
         for day in dayDirectories(in: sessions) {
-            for rollout in newestFirst(day) where rollout.pathExtension == "jsonl" {
+            for rollout in contents(of: day) where rollout.pathExtension == "jsonl" {
                 guard let reading = reading(inTailOf: rollout) else { continue }
                 if newest.map({ reading.observedAt > $0.observedAt }) ?? true {
                     newest = reading
@@ -99,28 +87,17 @@ public struct CodexUsageSource: UsageSource {
         return newest
     }
 
-    /// Rollouts live under `sessions/YYYY/MM/DD` and their names start with a timestamp, so
-    /// descending name order is newest-first at every level.
-    static func dayDirectories(in sessions: URL, limit: Int = .max) -> [URL] {
-        var days: [URL] = []
-        for year in subdirectories(sessions) {
-            for month in subdirectories(year) {
-                for day in subdirectories(month) {
-                    days.append(day)
-                    if days.count == limit { return days }
-                }
-            }
-        }
-        return days
+    /// Rollouts live under `sessions/YYYY/MM/DD`.
+    static func dayDirectories(in sessions: URL) -> [URL] {
+        subdirectories(sessions).flatMap(subdirectories).flatMap(subdirectories)
     }
 
-    static func newestFirst(_ directory: URL) -> [URL] {
-        ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+    static func contents(of directory: URL) -> [URL] {
+        (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
     }
 
     static func subdirectories(_ directory: URL) -> [URL] {
-        newestFirst(directory).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+        contents(of: directory).filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
     }
 
     /// Reads only the end of the file: a long session's rollout runs to megabytes and the
