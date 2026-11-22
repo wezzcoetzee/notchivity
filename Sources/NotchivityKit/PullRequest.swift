@@ -1,7 +1,7 @@
 import Foundation
 
 /// The same buckets pr-tracker used, in display order.
-public enum PRCategory: String, Codable, CaseIterable {
+public enum PRCategory: String, CaseIterable {
     case failing, needsAction, ready, awaitingReview
 
     public var title: String {
@@ -14,9 +14,9 @@ public enum PRCategory: String, Codable, CaseIterable {
     }
 }
 
-public enum CIState: String, Codable { case success, failure, pending, none }
+public enum CIState: String { case success, failure, pending, none }
 
-public struct PullRequest: Codable, Equatable, Identifiable {
+public struct PullRequest: Equatable, Identifiable {
     public var repo: String
     public var number: Int
     public var title: String

@@ -40,7 +40,6 @@ struct CLIProxyConnectionView: View {
         }
     }
 
-    /// The Settings field style: Body text in a 5pt Stroke Grey outline.
     private func labelled(_ title: String, @ViewBuilder field: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)

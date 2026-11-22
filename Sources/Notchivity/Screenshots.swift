@@ -151,7 +151,6 @@ enum Screenshots {
         }
     }
 
-    /// The external-display tab with PR counts and with category dots.
     private static func storeTabs() -> some View {
         let model = demoModel()
         let fake = geometry(.collapsed, fake: true)
@@ -164,7 +163,6 @@ enum Screenshots {
         }
     }
 
-    /// The external-display tab in each indicator mode, plus the hardware notch during first-run setup.
     private static func collapsedTabs() -> some View {
         let model = demoModel()
         let fake = geometry(.collapsed, fake: true)

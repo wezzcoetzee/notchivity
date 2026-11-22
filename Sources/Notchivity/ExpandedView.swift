@@ -26,9 +26,8 @@ struct ExpandedView: View {
         .frame(width: Self.width)
     }
 
-    /// Login on the left. On the right, freshness, then either the fault count with "fix" or a
-    /// plain "setup", then "settings". Faults live here, once, so the columns stay readings;
-    /// "fix" opens the setup checklist, which carries each fault's own fix.
+    /// Faults live here, once, so the columns stay readings; "fix" opens the setup checklist,
+    /// which carries each fault's own fix.
     /// The header shares its band with the hardware notch, so each side is capped at its half of
     /// the panel minus the notch; on a notch-less screen there is nothing to clear. A fault takes
     /// the freshness text's place, and truncates before the links do.
@@ -151,7 +150,6 @@ struct ExpandedView: View {
             }
             // An account with nothing to read only needs the reason.
             if !unread, let line = summary(account, lead: lead, rest: rest, old: old, withReset: resetUp == nil) { subLine(line) }
-            // A fault carries its fix where it is read ("token expired · open Claude Code").
             if let reason {
                 HStack(spacing: 4) {
                     subLine(Text(warning != nil && account.fix != nil ? reason + " ·" : reason)).help(account.failure?.description ?? reason)
@@ -193,7 +191,6 @@ struct ExpandedView: View {
         return ["\(reading.window.label) \(used)", reset].compactMap { $0 }.joined(separator: spoken ? ", " : " · ")
     }
 
-    /// Detail line under an account's bars. Long reasons wrap to two lines.
     private func subLine(_ text: Text) -> some View {
         text.font(.detail).foregroundStyle(Color.dim).lineLimit(2).fixedSize(horizontal: false, vertical: true)
     }
@@ -273,7 +270,6 @@ struct ExpandedView: View {
     /// list overflows.
     private var keyLegend: some View {
         let slack = model.slackConfigured ? ["space select", "a ask"] + (model.selectedPRs.isEmpty ? [] : ["c clear"]) : []
-        // Only keys that would do something right now.
         let overflow =
             model.showAllPRs ? ["v show less"] : model.orderedPRs.count > settings.rowsBeforeOverflow ? ["v view all"] : []
         let fix = model.firstFix == nil ? [] : ["f fix"]
@@ -320,11 +316,11 @@ struct ExpandedView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
     }
 
-    /// How many rows "view all" can show before the list would run off the fixed window
-    /// or past 60% of the screen; beyond that it scrolls.
     /// "view all" shows at most this many rows before it scrolls, however tall the screen.
     static let viewAllCap = 12
 
+    /// How many rows "view all" can show before the list would run off the fixed window
+    /// or past 60% of the screen; beyond that it scrolls.
     private var rowsThatFit: Int {
         let screen = geometry.screenHeight * 0.6
         let window = NotchWindowController.windowSize.height - 140

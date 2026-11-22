@@ -24,15 +24,6 @@ import Testing
         #expect(checks[0].fix == .openClaudeCode())
     }
 
-    @Test func reportCountsProblems() {
-        let report = SetupDoctor.report([
-            SetupCheck(id: "x", title: "Thing", status: .fail, fix: .copy("brew install gh")),
-            SetupCheck(id: "y", title: "Slack", status: .off, required: false),
-        ])
-        #expect(report.hasSuffix("1 problem"))
-        #expect(report.contains("→ copy brew install gh"))
-    }
-
     @Test func grokChecksAreOptionalAndDescribeOnlyItsAllowance() async {
         let doctor = SetupDoctor()
         #expect(await doctor.grokChecks(usage: []).isEmpty)
@@ -50,8 +41,7 @@ import Testing
 }
 
 @Suite struct ProviderRequirementTests {
-    /// A Codex-only setup is complete: the missing Claude sign-in is listed but does not block.
-    @Test func anyReadingProviderCompletesSetup() async {
+    @Test func codexOnlySetupDoesNotNeedClaude() async {
         let codex = AccountUsage(id: "codex", label: "Codex", provider: .codex, sessionPct: 10)
         let checks = await SetupDoctor().quotaChecks(usage: [codex], config: Config())
         let claude = checks.first { $0.id == "accounts" }

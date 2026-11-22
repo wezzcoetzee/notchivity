@@ -9,7 +9,6 @@ import UserNotifications
 @MainActor
 final class SetupModel: ObservableObject {
     @Published private(set) var checks: [SetupCheck] = []
-    @Published private(set) var running = false
     /// A "retry" click is refetching and rechecking; its link reads "checking…" until done.
     @Published private(set) var retrying = false
     /// User asked for the checklist even though nothing is blocking.
@@ -23,9 +22,7 @@ final class SetupModel: ObservableObject {
     static let recheckInterval: TimeInterval = 10
 
     var blocking: Int { checks.filter(\.blocking).count }
-    var required: [SetupCheck] { checks.filter(\.required) }
     var hasRun: Bool { !checks.isEmpty }
-    /// Show the checklist while first-run setup is incomplete, or on request.
     var visible: Bool { pinned || (hasRun && blocking > 0 && !everPassed && !skipped) }
 
     /// Required checks that need a look, failing first, then warnings, then switched off.
@@ -50,10 +47,8 @@ final class SetupModel: ObservableObject {
     /// The rows on screen, in screen order, for the arrow keys.
     var visibleRows: [SetupCheck] { requiredToDo + (showPassed ? passed : []) + optionalToDo }
 
-    /// The row the arrow keys are on, by check id.
     @Published private(set) var focusedCheck: String?
 
-    /// Arrow keys move through the rows as shown: required, then optional.
     func moveFocus(by step: Int) {
         let ids = visibleRows.map(\.id)
         guard !ids.isEmpty else { return }
@@ -61,7 +56,6 @@ final class SetupModel: ObservableObject {
         focusedCheck = ids[next]
     }
 
-    /// Return on a row applies its fix, like clicking the link.
     func applyFocused() {
         guard let fix = checks.first(where: { $0.id == focusedCheck })?.fix else { return }
         _ = apply(fix)
@@ -97,7 +91,6 @@ final class SetupModel: ObservableObject {
             return await current.value
         }
         let task = Task {
-            running = true
             repeat {
                 rerun = false
                 checks = await SetupDoctor().run(usage: await usageProvider(), prs: await prsProvider(), extra: await appChecks())
@@ -108,7 +101,6 @@ final class SetupModel: ObservableObject {
                 everPassed = true
                 firstPassed()
             }
-            running = false
         }
         current = task
         await task.value

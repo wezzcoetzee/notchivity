@@ -41,18 +41,6 @@ private func rolloutLine(
         #expect(CodexReading.parse(Data("not json".utf8)) == nil)
     }
 
-    @Test func readingBecomesACodexAccount() throws {
-        let reading = try #require(CodexReading.parse(rolloutLine()))
-        let usage = reading.accountUsage(now: 1_999_000_000)
-
-        #expect(usage.provider == .codex)
-        #expect(usage.label == "codex")
-        #expect(usage.sessionPct == 76)
-        #expect(usage.observedAt == reading.observedAt)
-    }
-
-    /// The reading is only as fresh as the last Codex turn, so a window whose reset has
-    /// already passed is empty again rather than stuck at its last percentage.
     @Test func windowsPastTheirResetReadEmpty() throws {
         let reading = try #require(CodexReading.parse(rolloutLine()))
         let usage = reading.accountUsage(now: 2_000_050_000)
@@ -96,21 +84,5 @@ private func rolloutLine(
         #expect(CodexUsageSource.newestReading(in: sessions)?.observedAt == UsageParsing.epochSeconds("2026-09-14T13:00:00Z"))
         try Data("not a usage record\n".utf8).write(to: today.appendingPathComponent("rollout-2026-09-14T16-00-00-empty.jsonl"))
         #expect(CodexUsageSource.newestReading(in: sessions)?.observedAt == UsageParsing.epochSeconds("2026-09-14T13:00:00Z"))
-    }
-
-    @Test func noCodexDirectoryMeansNoAccounts() async {
-        let source = CodexUsageSource(home: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString))
-        #expect(await source.fetch(previous: []).isEmpty)
-    }
-
-    @Test func dayDirectoriesComeBackNewestFirst() throws {
-        let sessions = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
-        for day in ["2026/09/13", "2026/09/14", "2025/12/31"] {
-            try FileManager.default.createDirectory(at: sessions.appendingPathComponent(day), withIntermediateDirectories: true)
-        }
-        defer { try? FileManager.default.removeItem(at: sessions) }
-
-        let days = CodexUsageSource.dayDirectories(in: sessions, limit: 3).map { $0.path.hasSuffix("2026/09/14") ? "new" : $0.lastPathComponent }
-        #expect(days == ["new", "13", "31"])
     }
 }

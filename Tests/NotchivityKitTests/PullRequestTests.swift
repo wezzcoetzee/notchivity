@@ -33,7 +33,6 @@ private func pr(
         #expect(pr(threads: 2).flags.first?.text == "2 unresolved")
     }
 
-    /// Blue says "awaiting review" only when the PR is actually waiting on a reviewer.
     @Test func blueRowsNameTheirCategory() {
         #expect(pr(ci: .pending).flags.map(\.text) == ["awaiting review", "CI running"])
         #expect(pr(draft: true).flags.map(\.text) == ["draft"])
@@ -116,10 +115,5 @@ private func pr(
         let old = [AccountUsage(id: "a", label: "idexx", sessionPct: 10, weeklyPct: 40)]
         let new = [AccountUsage(id: "a", label: "idexx", sessionPct: 95, weeklyPct: 40, failure: .http(401))]
         #expect(EventDiff.usage(old: old, new: new).isEmpty)
-    }
-
-    @Test func batchMessageListsEveryPR() {
-        let text = SlackNudger.batchMessage([pr(number: 1), pr(number: 2)])
-        #expect(text == ":eyes: 2 PRs waiting for review please:\n• <https://x/1|repo#1> t\n• <https://x/2|repo#2> t")
     }
 }

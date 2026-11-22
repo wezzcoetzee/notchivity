@@ -3,7 +3,6 @@ import Testing
 @testable import NotchivityKit
 
 @Suite struct SlackNudgerTests {
-    /// Every failure either links a fix or says the fix in its own words.
     @Test func failuresCarryTheirFix() {
         let cases: [(String, String, SetupCheck.Fix?)] = [
             ("set slackChannel in config.json", "no Slack channel set", .openSlackSettings),

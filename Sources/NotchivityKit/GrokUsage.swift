@@ -78,7 +78,6 @@ struct GrokReading: Equatable {
 }
 
 public struct GrokUsageSource: UsageSource {
-    public let provider = UsageProvider.grok
     static let accountId = "grok"
     // Grok trims this log at 5 MiB. Read its retained history, not just a busy turn's tail.
     static let maxLogBytes = 5 * 1024 * 1024
