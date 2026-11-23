@@ -38,7 +38,8 @@ The combination and the restraint together: every Claude, Codex and Grok Build a
 
 Durable features future work must preserve:
 
-- Three notch states: **collapsed** (matches the hardware notch), **peek** (one line for ~3 s after an event), **expanded** (while hovered: accounts and usage windows left, PRs grouped failing → needs action → ready → awaiting review right).
+- Three notch states: **collapsed** (matches the hardware notch), **peek** (one line for ~3 s after an event), **expanded** (while hovered: accounts and usage windows left, then this week's spend, PRs grouped failing → needs action → ready → awaiting review right).
+- **Spend:** Claude Code tokens from the local session logs priced at API list prices, today and this week with a bar per day, plus optional daily and weekly limits that alert once per crossing.
 - **Slack review asks:** right-click a PR or cmd-click several to ask for review in one Slack message; later asks post a reminder in the same thread. "Ask for review" is the one name for this everywhere.
 - **External display tab:** usage % with underline and failing / needs-action counts or dots on notch-less screens, configurable per display.
 - **CLI proxy quota source** as an alternative to local discovery.

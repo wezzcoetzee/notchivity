@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var prFailure: Error? { didSet { announceFaultChange() } }
     @Published private(set) var lastUsageAt: Date?
     @Published private(set) var lastPRsAt: Date?
+    /// This week's tokens at API list prices; nil until read, or when Claude Code has no logs.
+    @Published private(set) var spend: Spend?
     @Published private(set) var peek: Event? {
         didSet { if let peek, peek != oldValue { announce(peek.headline) } }
     }
@@ -34,6 +36,9 @@ final class AppModel: ObservableObject {
     let setup = SetupModel()
     private let usageReader = UsageReader()
     private let prFetcher = PRFetcher()
+    private let spendReader = SpendReader()
+    private var lastSpendAt: Date?
+    private var spendRefreshing = false
     private let settings = Settings.shared
     private var peekQueue: [Event] = []
     private var peekTask: Task<Void, Never>?
@@ -87,6 +92,7 @@ final class AppModel: ObservableObject {
                 // passed reset all come through here, so none of them waits for a hover. Not
                 // awaited, so a slow fetch never freezes the countdowns.
                 if usageIsStale || resetPassedSinceLastRead { Task { await refreshUsage() } }
+                if spendIsStale { Task { await refreshSpend() } }
             }
         }
     }
@@ -101,6 +107,7 @@ final class AppModel: ObservableObject {
     func refreshAll() {
         Task { await refreshUsage() }
         Task { await refreshPRs() }
+        Task { await refreshSpend() }
     }
 
     /// Called when the panel opens. PRs refetch if more than a few seconds old; usage only
@@ -110,6 +117,28 @@ final class AppModel: ObservableObject {
         transientStreak = 0
         if usageIsStale { Task { await refreshUsage() } }
         if prsAreStale { Task { await refreshPRs() } }
+        if spendIsStale { Task { await refreshSpend() } }
+    }
+
+    /// The logs are local, so a minute is plenty; opening the panel does not force a reread.
+    private var spendIsStale: Bool {
+        lastSpendAt.map { Date().timeIntervalSince($0) >= 59 } ?? true
+    }
+
+    /// The first read of a week of logs takes a few seconds; later reads only the new lines.
+    func refreshSpend() async {
+        guard !spendRefreshing else { return }
+        spendRefreshing = true
+        defer { spendRefreshing = false }
+        let fresh = await spendReader.read()
+        if let old = spend, let fresh {
+            dispatch(
+                EventDiff.spend(
+                    old: old, new: fresh, dailyLimit: settings.dailySpendLimit, weeklyLimit: settings.weeklySpendLimit,
+                    thresholds: settings.spendThresholds))
+        }
+        spend = fresh
+        lastSpendAt = Date()
     }
 
     /// A window's reset time fell between the last read and now, so the reading is known to be old.
@@ -299,8 +328,9 @@ final class AppModel: ObservableObject {
     }
 
     /// Fills the model with fixed sample data for `--screenshots`, bypassing every fetch.
-    func loadDemo(me: String, accounts: [AccountUsage], prs: [PullRequest], peek: Event, prFailure: Error? = nil) {
+    func loadDemo(me: String, accounts: [AccountUsage], prs: [PullRequest], peek: Event, prFailure: Error? = nil, spend: Spend? = nil) {
         self.me = me
+        self.spend = spend
         self.accounts = accounts
         self.prs = prs
         self.peek = peek

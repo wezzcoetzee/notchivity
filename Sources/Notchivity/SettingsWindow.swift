@@ -52,6 +52,7 @@ struct SettingsView: View {
     /// Typed but not yet written; saved on Return, window close or quit.
     @State private var slackDirty = false
     @State private var newThreshold = ""
+    @State private var newSpendThreshold = ""
     @State private var proxyURL = Config.load().cliProxyURL ?? ""
     @State private var showingProxyConnection = false
 
@@ -344,41 +345,12 @@ struct SettingsView: View {
             }
             segmented("Refresh interval", $settings.usageInterval, options: [120.0, 180.0, 300.0, 600.0].map { ($0, "\(Int($0 / 60)) min") })
             row("Notify when usage crosses", detail: "percentages, applies to every usage window", rule: false) { EmptyView() }
-            HStack(spacing: 6) {
-                ForEach(settings.thresholds, id: \.self) { value in
-                    chip {
-                        Text("\(Int(value))%").font(.detail)
-                        Button {
-                            settings.thresholds.removeAll { $0 == value }
-                        } label: {
-                            Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Color.dim)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove \(Int(value)) percent")
-                    }
-                }
-                chip {
-                    TextField("%", text: $newThreshold)
-                        .textFieldStyle(.plain)
-                        .multilineTextAlignment(.trailing)
-                        .font(.detail)
-                        .frame(width: 34)
-                        .onChange(of: newThreshold) { _, text in newThreshold = String(text.filter(\.isNumber).prefix(3)) }
-                        .onSubmit(addThreshold)
-                        .accessibilityLabel("New threshold percent")
-                }
-                Button(action: addThreshold) {
-                    Image(systemName: "plus").font(.system(size: 10, weight: .bold)).frame(width: 18, height: 18)
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.stroke))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(pendingThreshold == nil ? Color.dim : .white)
-                .disabled(pendingThreshold == nil)
-                .accessibilityLabel("Add threshold")
-            }
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, minHeight: ExpandedView.rowHeight, alignment: .leading)
-            .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
+            thresholdChips($settings.thresholds, draft: $newThreshold)
+            section("Spend")
+            field("Daily spend alert", detail: "whole dollars, empty for none", placeholder: "none", dollars($settings.dailySpendLimit), width: 60)
+            field("Weekly spend alert", detail: "the week starts Monday", placeholder: "none", dollars($settings.weeklySpendLimit), width: 60)
+            row("Alert at", detail: "percent of each limit, once per crossing", rule: false) { EmptyView() }
+            thresholdChips($settings.spendThresholds, draft: $newSpendThreshold)
             // Last, like "In the tab" on Displays, so the rows above do not read as part of it.
             if !model.accounts.isEmpty {
                 section("Names")
@@ -410,16 +382,57 @@ struct SettingsView: View {
             })
     }
 
-    /// The typed threshold, if it is a new percentage in 1...100.
-    private var pendingThreshold: Double? {
-        guard let value = Double(newThreshold), (1...100).contains(value), !settings.thresholds.contains(value) else { return nil }
-        return value
+    /// Percent chips with an add field, for usage and spend alerts alike. A new value must be a
+    /// percentage in 1...100 not already listed.
+    private func thresholdChips(_ values: Binding<[Double]>, draft: Binding<String>) -> some View {
+        let pending = Double(draft.wrappedValue).flatMap { (1...100).contains($0) && !values.wrappedValue.contains($0) ? $0 : nil }
+        func add() {
+            guard let pending else { return }
+            values.wrappedValue = (values.wrappedValue + [pending]).sorted()
+            draft.wrappedValue = ""
+        }
+        return HStack(spacing: 6) {
+            ForEach(values.wrappedValue, id: \.self) { value in
+                chip {
+                    Text("\(Int(value))%").font(.detail)
+                    Button {
+                        values.wrappedValue.removeAll { $0 == value }
+                    } label: {
+                        Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Color.dim)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove \(Int(value)) percent")
+                }
+            }
+            chip {
+                TextField("%", text: draft)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .font(.detail)
+                    .frame(width: 34)
+                    .onChange(of: draft.wrappedValue) { _, text in draft.wrappedValue = String(text.filter(\.isNumber).prefix(3)) }
+                    .onSubmit(add)
+                    .accessibilityLabel("New threshold percent")
+            }
+            Button(action: add) {
+                Image(systemName: "plus").font(.system(size: 10, weight: .bold)).frame(width: 18, height: 18)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.stroke))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(pending == nil ? Color.dim : .white)
+            .disabled(pending == nil)
+            .accessibilityLabel("Add threshold")
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: ExpandedView.rowHeight, alignment: .leading)
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.rule).frame(height: 1) }
     }
 
-    private func addThreshold() {
-        guard let value = pendingThreshold else { return }
-        settings.thresholds = (settings.thresholds + [value]).sorted()
-        newThreshold = ""
+    /// Whole dollars as text for a field; empty means no limit.
+    private func dollars(_ limit: Binding<Double>) -> Binding<String> {
+        Binding(
+            get: { limit.wrappedValue > 0 ? String(Int(limit.wrappedValue)) : "" },
+            set: { limit.wrappedValue = Double(String($0.filter(\.isNumber).prefix(5))) ?? 0 })
     }
 
     // MARK: Notifications

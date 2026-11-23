@@ -4,7 +4,7 @@ import Foundation
 public struct Event: Equatable, Identifiable {
     public enum Kind: String, CaseIterable {
         case ciFailed, conflicts, changesRequested, newThreads, approved, ready, merged
-        case usageThreshold, limitReset, fetchBroken
+        case usageThreshold, limitReset, spendThreshold, fetchBroken
         /// The one-time "ready" peek the first time setup passes. Never a notification.
         case welcome
 
@@ -21,6 +21,7 @@ public struct Event: Equatable, Identifiable {
             case .merged: return "Merged"
             case .usageThreshold: return "Usage threshold"
             case .limitReset: return "Usage reset"
+            case .spendThreshold: return "Spend alert"
             case .fetchBroken: return "PR fetch failing"
             case .welcome: return "Setup done"
             }
@@ -29,7 +30,7 @@ public struct Event: Equatable, Identifiable {
         /// Kinds that also post to Notification Center out of the box. Everything peeks.
         public var notifiesByDefault: Bool {
             switch self {
-            case .ciFailed, .conflicts, .changesRequested, .approved, .ready, .usageThreshold: return true
+            case .ciFailed, .conflicts, .changesRequested, .approved, .ready, .usageThreshold, .spendThreshold: return true
             case .newThreads, .merged, .limitReset, .fetchBroken, .welcome: return false
             }
         }
@@ -47,6 +48,7 @@ public struct Event: Equatable, Identifiable {
             case .merged: label = "merged"
             case .usageThreshold: label = n > 1 ? "usage alerts" : "usage alert"
             case .limitReset: label = n > 1 ? "usage resets" : "usage reset"
+            case .spendThreshold: label = n > 1 ? "spend alerts" : "spend alert"
             case .fetchBroken: label = "PR fetch failing"
             case .welcome: label = "setup done"
             }
@@ -162,5 +164,32 @@ public enum EventDiff {
             }
         }
         return events
+    }
+
+    public static let defaultSpendThresholds: [Double] = [75, 100]
+
+    /// Today's and this week's spend crossing a percentage of its limit. A limit of 0 is off.
+    /// A new day or week starts from $0, so the first read after midnight can cross too.
+    public static func spend(
+        old: Spend, new: Spend, dailyLimit: Double, weeklyLimit: Double, thresholds: [Double] = defaultSpendThresholds
+    ) -> [Event] {
+        let sameWeek = old.weekStart == new.weekStart
+        let periods = [
+            (name: "today", then: sameWeek && old.today == new.today ? old.todayCost : 0, now: new.todayCost, limit: dailyLimit),
+            (name: "this week", then: sameWeek ? old.weekCost : 0, now: new.weekCost, limit: weeklyLimit),
+        ]
+        return periods.compactMap { period in
+            guard period.limit > 0,
+                let crossed = thresholds.sorted().last(where: { period.then < period.limit * $0 / 100 && period.now >= period.limit * $0 / 100 })
+            else { return nil }
+            let pct = Int(period.now / period.limit * 100)
+            let detail =
+                period.name == "today"
+                ? "week \(Spend.money(new.weekCost))" + (weeklyLimit > 0 ? " of \(Spend.limit(weeklyLimit))" : "")
+                : "today \(Spend.money(new.todayCost)) · resets Mon"
+            return Event(
+                kind: .spendThreshold, headline: "spend at \(pct)% \(period.name) · \(Spend.money(period.now)) of \(Spend.limit(period.limit))",
+                detail: detail, tone: crossed >= 90 ? .bad : crossed >= 75 ? .warn : .dim)
+        }
     }
 }
