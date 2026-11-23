@@ -10,6 +10,7 @@ import SwiftUI
 @MainActor
 enum Screenshots {
     static func render(to dir: URL) {
+        useDemoSettings()
         let expanded = geometry(.expanded)
         let nudge = demoModel()
         nudge.selectedPRs = Set(nudge.orderedPRs.filter { [9, 1204].contains($0.number) }.map(\.id))
@@ -19,15 +20,15 @@ enum Screenshots {
         let shots: [(name: String, view: AnyView, headline: String, subtitle: String, width: CGFloat)] = [
             (
                 "expanded", AnyView(panel(ExpandedView(model: demoModel(), geometry: expanded))),
-                "Your limits and PRs, in the notch", "Claude, Codex and Grok usage beside every open pull request", 880
+                "Your limits and PRs, in the notch", "Claude, Codex and Grok usage and spend beside every open pull request", 1000
             ),
             (
                 "peek", AnyView(peekStack(peeks)),
-                "Know the moment it changes", "CI failures, approvals and usage thresholds drop out of the notch", 576
+                "Know the moment it changes", "CI failures, approvals, usage and spend alerts drop out of the notch", 700
             ),
             (
                 "nudge", AnyView(panel(ExpandedView(model: nudge, geometry: expanded))),
-                "Ask for review from the notch", "Pick the PRs that are waiting and ask for review in Slack", 880
+                "Ask for review from the notch", "Pick the PRs that are waiting and ask for review in Slack", 1000
             ),
             (
                 "tab", AnyView(storeTabs()),
@@ -46,6 +47,7 @@ enum Screenshots {
     }
 
     static func gallery(to dir: URL) {
+        useDemoSettings()
         let expanded = geometry(.expanded)
 
         save(panel(ExpandedView(model: demoModel(), geometry: expanded)), "expanded", dir)
@@ -120,6 +122,15 @@ enum Screenshots {
 
     // MARK: Composition
 
+    /// Spend limits for this run only, whatever the user has set, so the strip shows its limit
+    /// line and lamp. The argument domain shadows saved preferences and is never written to disk.
+    private static func useDemoSettings() {
+        var arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        arguments["dailySpendLimit"] = 60.0
+        arguments["weeklySpendLimit"] = 400.0
+        UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+    }
+
     private static func geometry(_ state: NotchState, fake: Bool = false) -> NotchGeometry {
         let geometry = NotchGeometry()
         geometry.state = state
@@ -133,8 +144,16 @@ enum Screenshots {
         let model = AppModel()
         model.loadDemo(
             me: "wezzcoetzee", accounts: accounts ?? Self.accounts(now: model.now), prs: prs ?? Self.prs(now: model.now),
-            peek: peeks[2], prFailure: prFailure)
+            peek: peeks[2], prFailure: prFailure, spend: spend(now: model.now))
         return model
+    }
+
+    /// Thursday of a week with a $60 daily line: Tuesday over it, today amber.
+    private static func spend(now: Date) -> Spend {
+        let costs: [(Double, Int)] = [(41.30, 268_000_000), (63.75, 402_000_000), (29.15, 190_000_000), (48.20, 312_000_000)]
+        return Spend(
+            weekStart: Spend.weekStart(of: now),
+            days: costs.map { Spend.Day(cost: $0.0, tokens: $0.1) } + Array(repeating: Spend.Day(), count: 3), today: 3)
     }
 
     /// The black notch shape RootView draws behind every state.
@@ -253,6 +272,7 @@ enum Screenshots {
         Event(kind: .ciFailed, headline: "CI failed · web#318", detail: "fix(web): checkout total rounds twice", tone: .bad),
         Event(kind: .usageThreshold, headline: "session at 88% · Work", detail: "resets 47m", tone: .warn),
         Event(kind: .ready, headline: "ready to merge · notchivity#42", detail: "feat: monitor Grok Build usage", tone: .good),
+        Event(kind: .spendThreshold, headline: "spend at 76% today · $46.00 of $60", detail: "week $180.20 of $400", tone: .warn),
     ]
 
     private static let extraPeeks = [

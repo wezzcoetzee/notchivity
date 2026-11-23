@@ -61,24 +61,27 @@ public enum ClaudeAccountDiscovery {
     /// The default directory's config file sits beside it at `~/.claude.json`; a custom
     /// directory keeps its config file inside itself.
     public static func discover(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [ClaudeAccount] {
-        let fileManager = FileManager.default
         var configs = [
             Config(
                 directory: home.appendingPathComponent(defaultDirectoryName).path,
                 isDefault: true,
                 json: try? Data(contentsOf: home.appendingPathComponent(configFileName)))
         ]
-        let siblings = ((try? fileManager.contentsOfDirectory(at: home, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
-            .filter { $0.lastPathComponent.hasPrefix(defaultDirectoryName + "-") }
-            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        for directory in siblings {
+        for directory in siblingDirectories(home: home) {
             configs.append(
                 Config(
                     directory: directory.path, isDefault: false,
                     json: try? Data(contentsOf: directory.appendingPathComponent(configFileName))))
         }
         return accounts(from: configs)
+    }
+
+    /// Every `~/.claude-*` directory, in name order.
+    static func siblingDirectories(home: URL) -> [URL] {
+        ((try? FileManager.default.contentsOfDirectory(at: home, includingPropertiesForKeys: [.isDirectoryKey])) ?? [])
+            .filter { $0.lastPathComponent.hasPrefix(defaultDirectoryName + "-") }
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
     /// Keeps input order and drops repeat sign-ins of the same account (the same login can

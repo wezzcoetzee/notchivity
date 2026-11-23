@@ -196,6 +196,14 @@ One block per account, sorted most urgent first: lead window at 90% or more, the
 - **Rhythm:** 6px above and below each block, so the first name sits level with the first PR title.
 - **Tooltip and VoiceOver:** every window with "% used" and its reset, and the provider after a renamed account ("Work (Claude)").
 
+### Spend Strip
+The usage column's last block, 12px below the accounts, titled "SPEND".
+- **Figures:** one Body line, "today $48.20" left and "week $182.40" right, the amounts white, or in the usage lamps against their limit (amber from 75%, red from 90%).
+- **Strip:** seven bars Monday to Sunday, 5px apart, 44px tall at most, sharing one scale with the daily limit. Past days Stroke Grey, today white (or its lamp), days ahead a 2px Track Grey stub. The daily limit is a 1px dashed Dimmed Grey line. Top corners 2px.
+- **Letters:** "m t w t f s s" in Detail under the bars, today's in white.
+- **Sub-line:** Detail Dimmed Grey, "1.42B tok this week · $60/day line". The block's tooltip says these are API list prices, not the subscription bill; each bar's says its day, cost and tokens.
+- **Absent** until the first read, and when Claude Code has no logs, so it never shows a $0.00 it did not read.
+
 ### Header
 Notch-height row in Detail, Dimmed Grey. The left slot, the first one seen, carries state, not identity: the worst thing right now in its lamp colour (a failing PR "CI failed · web#318", else usage at 90% or more "session at 96% · Claude", else a PR needing action), and nothing when calm. The GitHub login is that slot's tooltip. On the right: freshness ("updated Ns ago", or "usage updated…" while PRs have never loaded), replaced for 2 seconds by a keyboard confirmation ("opened web#318"); then the faults in white with a "fix" link, naming a lone fault ("token expired · fix") and counting several ("2 issues · fix"), or a plain "setup" link; then "settings". A fault takes the freshness text's place rather than adding to it. The header shares its band with the hardware notch, so each side is capped at its half of the panel minus the notch width; the fault text truncates before the links. Both "fix" and "setup" open the setup checklist over the dashboard. Each link has a 24px-tall hit area around its 11px text. The notch has no icons: every action is a word.
 

@@ -1,10 +1,10 @@
 # Notchivity
 
-A macOS notch app that shows Claude, Codex and Grok Build usage across every signed-in account and the status of your open pull requests. Hover the notch to expand it, or press ⌃⌥N from any app. Events (CI failed, approved, ready to merge, usage thresholds, usage resets) drop a short peek out of the notch and can post to Notification Center.
+A macOS notch app that shows Claude, Codex and Grok Build usage across every signed-in account, what your Claude Code tokens would cost today and this week, and the status of your open pull requests. Hover the notch to expand it, or press ⌃⌥N from any app. Events (CI failed, approved, ready to merge, usage thresholds, usage resets, spend alerts) drop a short peek out of the notch and can post to Notification Center.
 
 It replaces three earlier tools: boringNotch (the notch shell), [tokengochi](../tokengochi) (usage) and [pr-tracker](../pr-tracker) (PRs).
 
-![Usage and open PRs in the expanded notch](screenshots/framed/expanded.png)
+![Usage, spend and open PRs in the expanded notch](screenshots/framed/expanded.png)
 
 ## Install
 
@@ -24,12 +24,13 @@ xattr -dr com.apple.quarantine /Applications/Notchivity.app
 |---|---|---|
 | Collapsed | always | On a hardware notch: nothing, the shape matches the notch exactly, except "N to set up" until first-run setup passes. On other displays the black tab shows one account's usage % with a 2pt underline and the failing and needs-action PR counts (or category dots), each switchable in Displays. A PR fetch error shows a hollow amber ring in place of the indicator |
 | Peek | for 3 s after an event | One line: what happened, then on which PR or account |
-| Expanded | while hovered, or after ⌃⌥N | Usage on the left, open PRs on the right, and a header line |
+| Expanded | while hovered, or after ⌃⌥N | Usage and spend on the left, open PRs on the right, and a header line |
 
 ### The expanded panel
 
 - **Header.** The left side shows the worst thing right now in its colour ("CI failed · web#318", else usage at 90% or more, else a PR needing action), and nothing when all is calm; hover it for the signed-in GitHub login. The right side shows "updated 12s ago", then "setup" and "settings". When a fetch fails, the fault takes the freshness text's place: a lone one by name ("token expired · fix"), several as a count ("2 issues · fix"). Both sides stay clear of the hardware notch.
 - **Usage.** One block per account, most urgent first (90%+, then 75%+, then failing). The name and lead %, the lead window's bar with the other windows as thin lines under it, then the next reset and the other readings ("resets 2h 14m · week 61%"). The session leads unless another window has reached 75% and is fuller. At 75% or more the reset moves up beside the name ("Work · resets 47m") when it fits. Two accounts with one name read "1 of 2", "2 of 2". An account with no reading shows no bar, just "?" and why. Readings over 15 minutes old grey out and say "as of 3h ago".
+- **Spend.** Under usage: what today's and this week's Claude Code tokens would cost at API list prices ("today $48.20 · week $182.40"), then one bar per day from Monday. With a daily limit set, a dashed line marks it, and today's bar and figure turn amber at 75% and red at 90%; the week figure does the same against the weekly limit. Hover a bar for that day's cost and tokens.
 - **PRs.** Grouped failing → needs action → ready → awaiting review. A row shows its two most urgent flags on the right and counts the rest ("+3"); the tooltip lists them all. An amber row always leads with its reason ("2 unresolved", "changes requested", "not approved", or "draft" on an approved draft), and a blue row with "awaiting review" unless it is a draft or already approved. A long list ends in "view all" (or scrolls, per settings); "view all" shows up to 12 rows, then scrolls.
 - **Faults carry their fix where you read them.** "token expired · open Claude Code" under the account (hover for the full sentence), "GitHub unreachable · retry" in place of an empty PR list, or "as of 14m ago · retry" beside the PR count when the old list is still on screen. The header's "fix" opens the setup checklist with every fault's fix in one place.
 
@@ -76,7 +77,7 @@ A transient failure (expired token, network, server error) retries after a minut
 |---|---|
 | General | Launch at login (needs the app in /Applications), Slack channel and bot token (saved on Return, tab switch, window close or quit), setup check summary and "show on next hover", version, quit |
 | PRs | Category order (drag, or right-click a chip for Move Left / Move Right), overflow mode (view all or scroll), rows before overflow, hide drafts, show age |
-| Usage | Quota source (accounts on this Mac or CLI proxy), refresh interval, notification thresholds, account names |
+| Usage | Quota source (accounts on this Mac or CLI proxy), refresh interval, notification thresholds, daily and weekly spend alerts with their percentages, account names |
 | Notifications | Peek on or off, peek duration, per-event Notification Center toggles |
 | Displays | Hover delay, the ⌃⌥N shortcut on or off, show on external displays (a black tab at the top centre of notch-less screens), what the tab shows (usage on or off and for which account, PR indicator as counts, dots or nothing) |
 
@@ -111,6 +112,7 @@ Exit code 1 when a required check fails.
 - **Claude usage**: every 3 minutes by default (Settings › Usage), for `~/.claude` and each `~/.claude-*` sibling. The OAuth token is read from the Keychain item Claude Code created (first run shows one "wants to use confidential information" prompt per account; click Always Allow). Token refresh belongs to Claude Code / T3 Code; a 401 means neither has run for a while.
 - **Codex usage**: read from disk on the same interval. Codex records its rate limits in the rollout log of every session (`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`), so there is no token and no second caller on OpenAI's API; `primary` is the session window and `secondary` the week. The row only appears when `~/.codex/auth.json` exists. The freshest reading is selected by its event timestamp across all sessions, including older sessions that have resumed. The reading only moves when Codex runs, so the panel says "as of Nh ago" once it is over 15 minutes old, and a window whose reset time has passed reads as empty again.
 - **Grok Build usage**: read from `~/.grok/logs/unified.jsonl` on the same interval. Grok Build logs its included credit allowance after billing fetches (including `/usage`). The row appears when `~/.grok/auth.json` exists; credentials are never read and no API requests are made. The freshest timestamp wins, and the last reading survives log trimming while the app runs. Only the actual allowance window is shown: weekly or monthly, including legacy monthly credits. This is the subscription allowance, which can be shared across Grok products, rather than session token counts or API spending. Readings over 15 minutes old show "as of Nh ago". After the recorded period ends, usage becomes unknown until Grok records another snapshot; it is never assumed to be 0%. If no snapshot exists, open `grok` and run `/usage` (update Grok Build if its version does not log billing snapshots). `GROK_HOME` and `GROK_AUTH_PATH` overrides are supported when present in Notchivity's launch environment. Grok checks are optional and never block setup. The log schema follows [Grok Build's billing implementation](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-shell/src/extensions/billing.rs).
+- **Spend**: every 60 seconds from Claude Code's session logs (`~/.claude/projects/**/*.jsonl` and each `~/.claude-*` sibling, read once when one links to another). Each response is counted once by message and request id and priced per model at Anthropic's API list prices: input, output, cache writes (1.25x input for 5 minutes, 2x for 1 hour) and cache reads, with Haiku 5.5's higher tier past 100K prompt tokens. On a subscription this is what the tokens would have cost, not what you are billed. Spend is one total: the logs cannot tell accounts apart when sign-ins share a `projects` folder. Codex is not counted. Files are read from where the last read stopped, so only the first read of a week takes a few seconds. Prices live in `Spend.swift`.
 - **PRs**: every 60 seconds via `gh api graphql` for `is:pr is:open author:@me`, up to 100 (the count reads "100+" at the limit). Uses your existing `gh auth`.
 - PRs refetch when you open the panel if the last fetch is more than a few seconds old. Usage never polls more often than its interval, except that a transient failure (expired token, network, server error) retries after a minute; a rate limit waits the full interval.
 
@@ -120,6 +122,7 @@ Exit code 1 when a required check fails.
 |---|---|---|
 | CI failed, conflicts, changes requested, approved, ready to merge (an approval that makes a PR ready shows as "ready to merge" alone, unless that notification is off) | yes | yes |
 | Usage crossed a threshold (50 / 75 / 90 / 100 by default) | yes | yes |
+| Spend crossed a percentage of the daily or weekly limit (75 / 100 by default, off until a limit is set) | yes | yes |
 | New review comments, merged, usage reset, PR fetch failing | yes | no |
 
 The collapsed tab's % and underline use the chosen account's lead window, the same one the panel leads with: the session, unless another window has reached 75% and is fuller; for Grok Build, its allowance period.
@@ -213,6 +216,6 @@ These images render the real SwiftUI views offscreen with fixed sample data, so 
 swift build && .build/debug/Notchivity --screenshots screenshots
 ```
 
-That writes the bare views to `screenshots/raw/` and the five App Store images (expanded, peek, nudge, tab, setup), with the headline and background at 2880×1800, to `screenshots/framed/`. Headlines live in `Screenshots.render`.
+That writes the bare views to `screenshots/raw/` and the five App Store images (expanded, peek, nudge, tab, setup), with the headline and background at 2880×1800, to `screenshots/framed/`. Headlines live in `Screenshots.render`. Both modes set a $60 daily and $400 weekly spend limit for that run only, so the strip shows its limit line; your saved limits are untouched.
 
-`--gallery <dir>` renders every state for design review: the default dashboard, loading, empty, errors, a stale list after a failed refresh, selection, overflow, Slack status and failure, the first-hover hint, a stress state (long, emoji, CJK and RTL text, every flag, every fault), a crowd (9 accounts, 50 PRs), the setup checklist with and without keyboard focus, the collapsed tab modes, all peeks and each Settings tab. Settings reads `~/.config/notchivity/config.json`, so point `CFFIXED_USER_HOME` at a scratch home to keep your own channel out of the images.
+`--gallery <dir>` renders every state for design review: the default dashboard, loading, empty, errors, a stale list after a failed refresh, selection, overflow, Slack status and failure, the first-hover hint, a stress state (long, emoji, CJK and RTL text, every flag, every fault), a crowd (9 accounts, 50 PRs), the spend strip under every dashboard, the setup checklist with and without keyboard focus, the collapsed tab modes, all peeks and each Settings tab. Settings reads `~/.config/notchivity/config.json`, so point `CFFIXED_USER_HOME` at a scratch home to keep your own channel out of the images.

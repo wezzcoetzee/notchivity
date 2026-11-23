@@ -22,6 +22,10 @@ final class Settings: ObservableObject {
     @Stored("accountNames", default: [:]) var accountNames: [String: String]
     @Stored("usageInterval", default: 180.0) var usageInterval: Double
     @Stored("thresholds", default: EventDiff.defaultThresholds) var thresholds: [Double]
+    // Spend, in whole dollars; 0 means no limit.
+    @Stored("dailySpendLimit", default: 0.0) var dailySpendLimit: Double
+    @Stored("weeklySpendLimit", default: 0.0) var weeklySpendLimit: Double
+    @Stored("spendThresholds", default: EventDiff.defaultSpendThresholds) var spendThresholds: [Double]
     // Notifications
     @Stored("peekEnabled", default: true) var peekEnabled: Bool
     @Stored("peekDuration", default: 3.0) var peekDuration: Double

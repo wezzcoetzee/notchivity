@@ -15,10 +15,14 @@ public enum UsageParsing {
     public static func epochSeconds(_ value: Any?) -> Double? {
         if let seconds = number(value) { return seconds }
         guard let string = value as? String else { return nil }
+        return (fractional.date(from: string) ?? whole.date(from: string))?.timeIntervalSince1970
+    }
+
+    // Shared because the spend reader parses a timestamp per log line; ISO8601DateFormatter is thread safe.
+    private static let fractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) { return date.timeIntervalSince1970 }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)?.timeIntervalSince1970
-    }
+        return formatter
+    }()
+    private static let whole = ISO8601DateFormatter()
 }

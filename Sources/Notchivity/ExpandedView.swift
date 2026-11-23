@@ -91,6 +91,9 @@ struct ExpandedView: View {
             ForEach(model.panelAccounts) { account in
                 accountRow(account)
             }
+            if let spend = model.spend {
+                SpendView(spend: spend, dailyLimit: settings.dailySpendLimit, weeklyLimit: settings.weeklySpendLimit)
+            }
         }
     }
 
